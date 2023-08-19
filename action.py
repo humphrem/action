@@ -181,11 +181,13 @@ def post_processing(conf_thresh, nms_thresh, output):
     return bboxes_batch
 
 
+# Define the detect function to run the yolo-fish model on a single frame of video
+# and return a list of bounding boxes and confidence values for fish in the frame
 def detect(session, image_src, confidence_threshold):
     IN_IMAGE_H = session.get_inputs()[0].shape[2]
     IN_IMAGE_W = session.get_inputs()[0].shape[3]
 
-    # Format image for Input (608x608)
+    # Format image for Input (608x608), to size and colour used by yolo-fish
     resized = cv2.resize(
         image_src, (IN_IMAGE_W, IN_IMAGE_H), interpolation=cv2.INTER_LINEAR
     )
@@ -194,7 +196,8 @@ def detect(session, image_src, confidence_threshold):
     img_in = np.expand_dims(img_in, axis=0)
     img_in /= 255.0
 
-    # Compute detections
+    # Compute detections, run on img_in inputs, return outputs
+    # turn outputs into a series of boxes with post_processing
     input_name = session.get_inputs()[0].name
     outputs = session.run(None, {input_name: img_in})
     boxes = post_processing(confidence_threshold, 0.6, outputs)
@@ -261,6 +264,7 @@ def format_percent(num):
     return "{:.2f}%".format(num * 100)
 
 
+# Defining the function process_frames, called in main
 def process_frames(cap, session, clip_queue, fps, total_frames, logger, args):
     video_path = args.filename
     confidence_threshold = args.confidence
@@ -294,7 +298,7 @@ def process_frames(cap, session, clip_queue, fps, total_frames, logger, args):
         # the detection period ends. However, check the next frame after this
         # to see if we should end this detection period or extend it.
         if detection_event:
-            skip_ahead_frames = int(min_detection_duration * fps)
+            skip_ahead_frames = int(min_detection_duration * fps + buffer_seconds)
             logger.debug(f"Detection event, skipping ahead {skip_ahead_frames} frames")
 
             # Skip ahead the number of frames that will be in the clip (i.e.,
@@ -389,6 +393,7 @@ def process_frames(cap, session, clip_queue, fps, total_frames, logger, args):
     return clip_count
 
 
+# Main part of program to do setup and start processing frames in each file
 def main(args):
     video_path = args.filename
     confidence_threshold = args.confidence
@@ -461,16 +466,17 @@ def main(args):
             clip_process.join()
 
 
+# Define the command line arguments
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fish Camera Trap")
     parser.add_argument("filename")
     parser.add_argument(
         "-b",
         "--buffer",
-        default=0,
-        type=int,
+        default=0.0,
+        type=float,
         dest="buffer",
-        help="Number of seconds to add before/after detection",
+        help="Number of seconds to add before and after detection (e.g., 1.0)",
     )
     parser.add_argument(
         "-c",
@@ -483,10 +489,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "-m",
         "--minimum-duration",
-        default=1,
+        default=1.0,
         type=float,
         dest="min_duration",
-        help="Minimum duration for clips in seconds (e.g., 2)",
+        help="Minimum duration for clips in seconds (e.g., 2.0)",
     )
     parser.add_argument(
         "-f",
