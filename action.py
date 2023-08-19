@@ -4,6 +4,7 @@ import shutil
 import logging
 import argparse
 import subprocess
+import sys
 from multiprocessing import Process, Queue, Event
 
 import cv2
@@ -406,6 +407,23 @@ def main(args):
     logger = logging.getLogger(__name__)
     logging.basicConfig(level=args.log_level, format="%(message)s")
 
+    # Validate argument parameters from user before using them
+    if buffer_seconds < 0.0:
+        logger.error("Error: minimum buffer cannot be negative")
+        sys.exit(1)
+    
+    if min_detection_duration <= 0.0:
+        logger.error("Error: minimum duration must be greater than 0.0")
+        sys.exit(1)
+    
+    if confidence_threshold <= 0.0 or confidence_threshold > 1.0:
+        logger.error("Error: confidence must be greater than 0.0 and less than 1.0")
+        sys.exit(1)
+    
+    if frames_to_skip < 0:
+        logger.error("Error: frames to skip cannot be negative")
+        sys.exit(1)
+
     cap = None
     clip_queue = None
     stop_event = Event()
@@ -476,7 +494,7 @@ if __name__ == "__main__":
         default=0.0,
         type=float,
         dest="buffer",
-        help="Number of seconds to add before and after detection (e.g., 1.0)",
+        help="Number of seconds to add before and after detection (e.g., 1.0), cannot be negative",
     )
     parser.add_argument(
         "-c",
@@ -484,7 +502,7 @@ if __name__ == "__main__":
         default=0.25,
         type=float,
         dest="confidence",
-        help="Confidence threshold for detection (e.g., 0.45)",
+        help="Confidence threshold for detection (e.g., 0.45), must be greater than 0.0 and less than 1.0",
     )
     parser.add_argument(
         "-m",
@@ -492,7 +510,7 @@ if __name__ == "__main__":
         default=1.0,
         type=float,
         dest="min_duration",
-        help="Minimum duration for clips in seconds (e.g., 2.0)",
+        help="Minimum duration for clips in seconds (e.g., 2.0), must be greater than 0.0",
     )
     parser.add_argument(
         "-f",
@@ -500,7 +518,7 @@ if __name__ == "__main__":
         default=15,
         type=int,
         dest="skip_frames",
-        help="Number of frames to skip when detecting (e.g., 15)",
+        help="Number of frames to skip when detecting (e.g., 15), cannot be negative",
     )
     parser.add_argument(
         "-d",
