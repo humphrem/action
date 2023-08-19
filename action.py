@@ -472,7 +472,7 @@ def main(args):
 
             # Process the video's frames into clips of fish
             clip_count = process_frames(
-                video_path, cap, session, clip_queue, fps, total_frames, logger, args
+                cap, session, clip_queue, fps, total_frames, logger, args
             )
             end_time = time.time()
             logger.info(
