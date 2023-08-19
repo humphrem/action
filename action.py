@@ -1,4 +1,5 @@
 import os
+import glob
 import time
 import shutil
 import logging
@@ -394,18 +395,26 @@ def process_frames(cap, session, clip_queue, fps, total_frames, logger, args):
     return clip_count
 
 
+# Turn a list of one or more filenames, paths, globs, into a list of file paths
+def get_video_paths(file_patterns):
+    video_paths = []
+    for pattern in file_patterns:
+        video_paths.extend(glob.glob(pattern))
+    return video_paths
+
 # Main part of program to do setup and start processing frames in each file
 def main(args):
-    video_path = args.filename
+    # Create a logger for this module and set the log level
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(level=args.log_level, format="%(message)s")
+
+    video_paths = get_video_paths(args.filename)
+    logger.debug(f"Got input files: {video_paths}")
     confidence_threshold = args.confidence
     buffer_seconds = args.buffer
     min_detection_duration = args.min_duration
     frames_to_skip = args.skip_frames
     delete_clips = args.delete_clips
-
-    # Create a logger for this module and set the log level
-    logger = logging.getLogger(__name__)
-    logging.basicConfig(level=args.log_level, format="%(message)s")
 
     # Validate argument parameters from user before using them
     if buffer_seconds < 0.0:
@@ -427,14 +436,8 @@ def main(args):
     cap = None
     clip_queue = None
     stop_event = Event()
-    start_time = time.time()
 
     try:
-        # If the user requests it via -d flag, remove old clips first
-        if delete_clips:
-            logger.debug(f"Removing old clips from {get_clips_dir(video_path)}")
-            remove_clips(video_path, logger)
-
         # Create a queue for clips to be processed by ffmpeg
         clip_queue = Queue()
         clip_process = Process(
@@ -442,30 +445,44 @@ def main(args):
         )
         clip_process.start()
 
-        # Load YOLO-Fish model
-        session = load_model()
+        # Loop over all the video file paths and process each one
+        for i, video_path in enumerate(video_paths, start=1):
+            start_time = time.time()
 
-        # Setup video capture for the file
-        cap = cv2.VideoCapture(video_path)
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        duration = total_frames / fps
+            # If the user requests it via -d flag, remove old clips first
+            if delete_clips:
+                logger.debug(f"Removing old clips from {get_clips_dir(video_path)}")
+                remove_clips(video_path, logger)
 
-        logger.info(
-            f"Processing {video_path}: {format_time(duration)} - {total_frames} frames at {fps} fps, skipping every {frames_to_skip} frames"
-        )
-        logger.info(
-            f"Using confidence threshold {confidence_threshold}, minimum clip duration of {min_detection_duration} seconds, and {buffer_seconds} seconds of buffer."
-        )
+            # Load YOLO-Fish model
+            session = load_model()
 
-        # Process the video's frames into clips of fish
-        clip_count = process_frames(
-            cap, session, clip_queue, fps, total_frames, logger, args
-        )
-        end_time = time.time()
-        logger.info(
-            f"Finished (total time {format_time(end_time - start_time)}). Processed {total_frames} frames into {clip_count} clips"
-        )
+            # Setup video capture for this video file
+            cap = cv2.VideoCapture(video_path)
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            duration = total_frames / fps
+
+            logger.info(
+                f"\nStarting file {i} of {len(video_paths)}: {video_path} - {format_time(duration)} - {total_frames} frames at {fps} fps, skipping every {frames_to_skip} frames"
+            )
+            logger.info(
+                f"Using confidence threshold {confidence_threshold}, minimum clip duration of {min_detection_duration} seconds, and {buffer_seconds} seconds of buffer."
+            )
+
+            # Process the video's frames into clips of fish
+            clip_count = process_frames(
+                video_path, cap, session, clip_queue, fps, total_frames, logger, args
+            )
+            end_time = time.time()
+            logger.info(
+                f"Finished file {i} of {len(video_paths)}: {video_path} (total time {format_time(end_time - start_time)}). Processed {total_frames} frames into {clip_count} clips"
+            )
+
+            # Clean-up the resources we have open, if necessary
+            if cap is not None:
+                cap.release()
+
     except KeyboardInterrupt:
         logger.warning("Interrupted by user, cleaning up...")
         stop_event.set()
@@ -487,7 +504,11 @@ def main(args):
 # Define the command line arguments
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fish Camera Trap")
-    parser.add_argument("filename")
+    parser.add_argument(
+        "filename",
+        nargs="+",  # we allow multiple file paths
+        help="Path to a video file, multiple video files, or a glob pattern (e.g., ./video/*.mov)",
+    )
     parser.add_argument(
         "-b",
         "--buffer",
