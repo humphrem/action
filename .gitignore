@@ -156,3 +156,6 @@ video/
 
 # Ignore the yolo-fish model because it is too large
 yolov4_1_3_608_608_static.onnx
+
+# Ignore Mac Finder files
+.DS_Store
