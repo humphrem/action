@@ -267,8 +267,7 @@ def format_percent(num):
 
 
 # Defining the function process_frames, called in main
-def process_frames(cap, session, clip_queue, fps, total_frames, logger, args):
-    video_path = args.filename
+def process_frames(video_path, cap, session, clip_queue, fps, total_frames, logger, args):
     confidence_threshold = args.confidence
     buffer_seconds = args.buffer
     min_detection_duration = args.min_duration
@@ -472,7 +471,7 @@ def main(args):
 
             # Process the video's frames into clips of fish
             clip_count = process_frames(
-                cap, session, clip_queue, fps, total_frames, logger, args
+                video_path, cap, session, clip_queue, fps, total_frames, logger, args
             )
             end_time = time.time()
             logger.info(
