@@ -38,7 +38,9 @@ def load_model():
             f"The YOLO-Fish model file {onnx_weights_path} does not exist."
         )
     session = onnxruntime.InferenceSession(
-        onnx_weights_path, providers=["CPUExecutionProvider"]
+        # TODO: can't get "CoreMLExecutionProvider" to work, using CPU
+        onnx_weights_path,
+        providers=["CPUExecutionProvider"],
     )
     return session
 
@@ -185,7 +187,7 @@ def post_processing(conf_thresh, nms_thresh, output):
 
 # Define the detect function to run the yolo-fish model on a single frame of video
 # and return a list of bounding boxes and confidence values for fish in the frame
-def detect(session, image_src, confidence_threshold):
+def detect(session, image_src, confidence_threshold, logger):
     IN_IMAGE_H = session.get_inputs()[0].shape[2]
     IN_IMAGE_W = session.get_inputs()[0].shape[3]
 
@@ -199,9 +201,14 @@ def detect(session, image_src, confidence_threshold):
     img_in /= 255.0
 
     # Compute detections, run on img_in inputs, return outputs
-    # turn outputs into a series of boxes with post_processing
+    # turn outputs into a series of boxes with post_processing.
+    # In debug mode, print out how long the detection took.
+    start_time = time.time()
     input_name = session.get_inputs()[0].name
     outputs = session.run(None, {input_name: img_in})
+    end_time = time.time()
+    logger.debug(f"Detection took {end_time - start_time}s")
+
     boxes = post_processing(confidence_threshold, 0.6, outputs)
     return boxes
 
@@ -267,7 +274,9 @@ def format_percent(num):
 
 
 # Defining the function process_frames, called in main
-def process_frames(video_path, cap, session, clip_queue, fps, total_frames, logger, args):
+def process_frames(
+    video_path, cap, session, clip_queue, fps, total_frames, logger, args
+):
     confidence_threshold = args.confidence
     buffer_seconds = args.buffer
     min_detection_duration = args.min_duration
@@ -312,7 +321,7 @@ def process_frames(video_path, cap, session, clip_queue, fps, total_frames, logg
 
             # Before ending this detection period, check if there is a fish
             # in what comes after it and extend if necessary
-            boxes = detect(session, frame, confidence_threshold)
+            boxes = detect(session, frame, confidence_threshold, logger)
             if len(boxes[0]) > 0:
                 detection_highest_confidence = max(
                     detection_highest_confidence, max(box[5] for box in boxes[0])
@@ -345,9 +354,10 @@ def process_frames(video_path, cap, session, clip_queue, fps, total_frames, logg
             continue
 
         # If we're not already in a detection event, process every n frames
-        # vs. every frame for speed (e.g., every 15 of 30fps)
-        if frame_count % frames_to_skip == 0:
-            boxes = detect(session, frame, confidence_threshold)
+        # vs. every frame for speed (e.g., every 15 of 30fps). We also check
+        # the last frame, so we don't miss anything at the edge.
+        if frame_count % frames_to_skip == 0 or frame_count == total_frames - 1:
+            boxes = detect(session, frame, confidence_threshold, logger)
 
             # If one ore more fish were detected
             if len(boxes[0]) > 0:
@@ -401,6 +411,7 @@ def get_video_paths(file_patterns):
         video_paths.extend(glob.glob(pattern))
     return video_paths
 
+
 # Main part of program to do setup and start processing frames in each file
 def main(args):
     # Create a logger for this module and set the log level
@@ -419,15 +430,15 @@ def main(args):
     if buffer_seconds < 0.0:
         logger.error("Error: minimum buffer cannot be negative")
         sys.exit(1)
-    
+
     if min_detection_duration <= 0.0:
         logger.error("Error: minimum duration must be greater than 0.0")
         sys.exit(1)
-    
+
     if confidence_threshold <= 0.0 or confidence_threshold > 1.0:
         logger.error("Error: confidence must be greater than 0.0 and less than 1.0")
         sys.exit(1)
-    
+
     if frames_to_skip < 0:
         logger.error("Error: frames to skip cannot be negative")
         sys.exit(1)
