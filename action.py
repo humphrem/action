@@ -256,9 +256,9 @@ def plot_boxes_cv2(img, boxes):
     return img
 
 
-def draw_detections(image_src, boxes):
+def draw_detections(image_src, boxes, video_path):
     img = plot_boxes_cv2(image_src, boxes[0])
-    cv2.imshow("Video", img)
+    cv2.imshow(video_path, img)
     cv2.waitKey(1)
 
 
@@ -330,7 +330,7 @@ def process_frames(
                     f"Fish detected, extending detection event: {format_time(frame_count / fps)} (max confidence={format_percent(detection_highest_confidence)})"
                 )
                 if show_detections:
-                    draw_detections(frame, boxes)
+                    draw_detections(frame, boxes, video_path)
                 continue
 
             # No fish found after this clip, so we're done--create the clip
@@ -372,7 +372,7 @@ def process_frames(
                         f"Fish detected, starting detection event: {format_time(detection_start_time)} (max confidence={format_percent(detection_highest_confidence)})"
                     )
                     if show_detections:
-                        draw_detections(frame, boxes)
+                        draw_detections(frame, boxes, video_path)
                     detection_event = True
 
         # We've finished processing this frame
@@ -455,9 +455,12 @@ def main(args):
         )
         clip_process.start()
 
+        # Keep track of total time to process all files, recording start time
+        total_time_start = time.time()
+
         # Loop over all the video file paths and process each one
         for i, video_path in enumerate(video_paths, start=1):
-            start_time = time.time()
+            file_start_time = time.time()
 
             # If the user requests it via -d flag, remove old clips first
             if delete_clips:
@@ -484,14 +487,20 @@ def main(args):
             clip_count = process_frames(
                 video_path, cap, session, clip_queue, fps, total_frames, logger, args
             )
-            end_time = time.time()
+            file_end_time = time.time()
             logger.info(
-                f"Finished file {i} of {len(video_paths)}: {video_path} (total time {format_time(end_time - start_time)}). Processed {total_frames} frames into {clip_count} clips"
+                f"Finished file {i} of {len(video_paths)}: {video_path} (total time to process file {format_time(file_end_time - file_start_time)}). Processed {total_frames} frames into {clip_count} clips"
             )
 
             # Clean-up the resources we have open, if necessary
             if cap is not None:
                 cap.release()
+
+        # Keep track of total time to process all files, recording end time
+        total_time_end = time.time()
+        logger.info(
+            f"\nFinished processing, total time for {len(video_paths)} files: {format_time(total_time_end - total_time_start)}"
+        )
 
     except KeyboardInterrupt:
         logger.warning("Interrupted by user, cleaning up...")
