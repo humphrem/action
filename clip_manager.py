@@ -1,5 +1,5 @@
 """
-This module is responsible for manage the creation of video clips. As
+This module is responsible for managing the creation of video clips. As
 a detector finds objects of interest, video clips are extracted. The majority
 of this work is done by the ClipManager class, with support from some other
 utility functions.
@@ -31,7 +31,7 @@ def get_clips_dir(video_path):
 
 def remove_clips_dir(video_path, logger):
     """
-    Delete the old clips directory for the given video_pat,
+    Delete the old clips directory for the given video_path,
     if exists.
 
     Args:
@@ -89,7 +89,8 @@ class ClipManager:
         Returns:
             None
         """
-        # If the user does ctrl+c, stop this subprocess
+        # Create a clip from the overall video
+        # but, stop this subprocess if the user does ctrl+c
         while not stop_event.is_set():
             try:
                 clip_start_time, clip_end_time, clip_count, video_path = queue.get()

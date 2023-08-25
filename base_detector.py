@@ -2,7 +2,7 @@
 This module contains the BaseDetector class, which is used as the basis for the 
 MegadetectorDetector and YoloFishDetector classes.  The BaseDetector wraps an
 ONNX model for object detection and includes functions for loading a model,
-doing detections and drawing those detections. The rest of the code for each
+doing detections, and drawing those detections. The rest of the code for each
 model is in the derived class (see yolo_fish_detector.py and megadetector_detector.py)
 """
 

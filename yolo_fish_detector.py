@@ -71,7 +71,7 @@ def nms_cpu(boxes, confs, nms_thresh=0.5, min_mode=False):
 class YoloFishDetector(BaseDetector):
     """
     YoloFishDetector class that inherits from BaseDetector. It uses the
-    YOLO-Fishr ONNX model for object detection and includes methods for
+    YOLO-Fish ONNX model for object detection and includes methods for
     post-processing of the model's outputs.
     """
 
@@ -112,7 +112,7 @@ class YoloFishDetector(BaseDetector):
         box_array = box_array[:, :, 0, :]
         confs = confs[:, :, 0]
 
-        # Concatenate the three arrays for coord, confidence, and class to form
+        # Concatenate (join) the three arrays for coord, confidence, and class to form
         # bounding boxes of the form: [x1, y1, x2, y2, confidence, class]
         box_array = np.concatenate(
             (
@@ -127,6 +127,7 @@ class YoloFishDetector(BaseDetector):
         if type(box_array).__name__ != "ndarray":
             box_array = box_array.cpu().detach().numpy()
 
+        # Filter out overlapping bounding boxes using the non-max suppression function
         nms_threshold = 0.6
         bboxes_batch = []
         for i in range(box_array.shape[0]):
