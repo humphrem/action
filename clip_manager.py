@@ -89,7 +89,7 @@ class ClipManager:
         Returns:
             None
         """
-        # Create a clip from the overall video
+        # Create an MP4 video clip from the overall video
         # but, stop this subprocess if the user does ctrl+c
         while not stop_event.is_set():
             try:
@@ -101,7 +101,7 @@ class ClipManager:
 
                 # Create a clip for the given detection period with ffmpeg
                 clip_duration = clip_end_time - clip_start_time
-                clip_filename = f"{get_clips_dir(video_path)}/{(clip_count):03}-{format_time(clip_start_time, '_')}-{format_time(clip_end_time, '_')}{os.path.splitext(video_path)[1]}"
+                clip_filename = f"{get_clips_dir(video_path)}/{(clip_count):03}-{format_time(clip_start_time, '_')}-{format_time(clip_end_time, '_')}.mp4"
                 os.makedirs(os.path.dirname(clip_filename), exist_ok=True)
                 subprocess.run(
                     [
@@ -116,6 +116,10 @@ class ClipManager:
                         str(clip_duration),
                         "-i",
                         video_path,
+                        "-c:v",
+                        "libx264",  # use H.264 for video codec to maximize compatibility
+                        "-c:a",
+                        "aac",  # use Advanced Audio Coding (AAC) for audio compatibility
                         clip_filename,
                     ]
                 )
