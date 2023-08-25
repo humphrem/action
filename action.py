@@ -19,27 +19,27 @@ import cv2
 
 # We use converted ONNX models for YOLO-Fish (https://github.com/tamim662/YOLO-Fish)
 # and Megadetector (https://github.com/microsoft/CameraTraps)
-def load_detector(type, logger):
+def load_detector(environment, logger):
     """
-    Load the appropriate detector based on the type provided.
+    Load the appropriate detector based on the environment provided.
 
     Args:
-        type (str): The type of detector to load. Must be either "animal" or "fish".
+        environment (str): The type of detector to load. Must be either "aquatic" or "terrestrial".
         logger (logging.Logger): The logger to use for logging messages.
 
     Returns:
         detector (object): An instance of the appropriate detector.
 
     Raises:
-        TypeError: If the type provided is not "animal" or "fish".
+        TypeError: If the environment provided is not "aquatic" or "terrestrial".
     """
     detector = None
-    if type == "animal":
+    if environment == "terrestrial":
         detector = MegadetectorDetector(logger)
-    elif type == "fish":
+    elif environment == "aquatic":
         detector = YoloFishDetector(logger)
     else:
-        raise TypeError("type must be one of animal or fish")
+        raise TypeError("environment must be one of aquatic or terrestrial")
 
     detector.load()
     return detector
@@ -207,7 +207,7 @@ def main(args):
     min_detection_duration = args.min_duration
     frames_to_skip = args.skip_frames
     delete_clips = args.delete_clips
-    detection_type = args.type
+    environment = args.environment
 
     # Validate argument parameters from user before using them
     if buffer_seconds < 0.0:
@@ -233,8 +233,8 @@ def main(args):
         # Create a queue manager for clips to be processed by ffmpeg
         clips = ClipManager(logger)
 
-        # Load YOLO-Fish or Megadetector, based on `-t` value
-        detector = load_detector(detection_type, logger)
+        # Load YOLO-Fish or Megadetector, based on `-e` value
+        detector = load_detector(environment, logger)
 
         # Keep track of total time to process all files, recording start time
         total_time_start = time.time()
@@ -311,12 +311,12 @@ if __name__ == "__main__":
         help="Path to a video file, multiple video files, or a glob pattern (e.g., ./video/*.mov)",
     )
     parser.add_argument(
-        "-t",
-        "--type",
-        choices=["animal", "fish"],
-        default="fish",
-        dest="type",
-        help="Type of camera detection, either animal or fish, defaults to --type fish",
+        "-e",
+        "--environment",
+        choices=["terrestrial", "aquatic"],
+        default="aquatic",
+        dest="environment",
+        help="Type of camera environment, either aquatic or terrestrial, defaults to --environment aquatic",
     )
     parser.add_argument(
         "-b",
