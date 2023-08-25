@@ -46,7 +46,9 @@ def load_detector(environment, logger):
 
 
 # Defining the function process_frames, called in main
-def process_frames(video_path, cap, detector, clips, fps, total_frames, logger, args):
+def process_frames(
+    video_path, cap, detector, clips, fps, total_frames, frames_to_skip, logger, args
+):
     """
     Process frames from a video file and create clips based on detections.
 
@@ -57,6 +59,7 @@ def process_frames(video_path, cap, detector, clips, fps, total_frames, logger, 
         clips (ClipManager): The clip manager for managing clips.
         fps (int): The frames per second of the video.
         total_frames (int): The total number of frames in the video.
+        frames_to_skip (int): The number of frames to skip between detections
         logger (logging.Logger): The logger to use for logging messages.
         args (argparse.Namespace): The command line arguments.
 
@@ -66,7 +69,6 @@ def process_frames(video_path, cap, detector, clips, fps, total_frames, logger, 
     confidence_threshold = args.confidence
     buffer_seconds = args.buffer
     min_detection_duration = args.min_duration
-    frames_to_skip = args.skip_frames
     show_detections = args.show_detections
 
     # Number of frames per minute of video time
@@ -205,7 +207,6 @@ def main(args):
     confidence_threshold = args.confidence
     buffer_seconds = args.buffer
     min_detection_duration = args.min_duration
-    frames_to_skip = args.skip_frames
     delete_clips = args.delete_clips
     environment = args.environment
 
@@ -220,10 +221,6 @@ def main(args):
 
     if confidence_threshold <= 0.0 or confidence_threshold > 1.0:
         logger.error("Error: confidence must be greater than 0.0 and less than 1.0")
-        sys.exit(1)
-
-    if frames_to_skip < 0:
-        logger.error("Error: frames to skip cannot be negative")
         sys.exit(1)
 
     cap = None
@@ -250,6 +247,7 @@ def main(args):
             # Setup video capture for this video file
             cap = cv2.VideoCapture(video_path)
             fps = cap.get(cv2.CAP_PROP_FPS)
+            frames_to_skip = args.skip_frames or int(fps / 2.0)
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             duration = total_frames / fps
 
@@ -262,7 +260,15 @@ def main(args):
 
             # Process the video's frames into clips
             clip_count = process_frames(
-                video_path, cap, detector, clips, fps, total_frames, logger, args
+                video_path,
+                cap,
+                detector,
+                clips,
+                fps,
+                total_frames,
+                frames_to_skip,
+                logger,
+                args,
             )
             file_end_time = time.time()
             logger.info(
@@ -345,10 +351,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "-f",
         "--frames-to-skip",
-        default=15,
         type=int,
         dest="skip_frames",
-        help="Number of frames to skip when detecting (e.g., 15), cannot be negative",
+        help="Number of frames to skip when detecting (e.g., 15), cannot be negative, defaults to half the frame rate",
     )
     parser.add_argument(
         "-d",
