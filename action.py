@@ -3,7 +3,7 @@ This is the main module for ACTION. It handles parsing arguments from the user,
 loading and managing resources, and processing detections into clips.
 """
 
-
+import os
 import sys
 import time
 import logging
@@ -211,6 +211,10 @@ def main(args):
     environment = args.environment
 
     # Validate argument parameters from user before using them
+    if len(video_paths) < 1:
+        logger.error("Error: you must specify one or more video filenames to process")
+        sys.exit(1)
+
     if buffer_seconds < 0.0:
         logger.error("Error: minimum buffer cannot be negative")
         sys.exit(1)
@@ -238,6 +242,11 @@ def main(args):
 
         # Loop over all the video file paths and process each one
         for i, video_path in enumerate(video_paths, start=1):
+            # Make sure this video path actually exists before we try to use it
+            if not os.path.exists(video_path):
+                logger.info(f"Video path {video_path} does not exist, skipping.")
+                continue
+
             file_start_time = time.time()
 
             # If the user requests it via -d flag, remove old clips first
