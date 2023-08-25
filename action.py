@@ -1,282 +1,68 @@
-import os
-import glob
+"""
+This is the main module for ACTION. It handles parsing arguments from the user,
+loading and managing resources, and processing detections into clips.
+"""
+
+
+import sys
 import time
-import shutil
 import logging
 import argparse
-import subprocess
-import sys
-from multiprocessing import Process, Queue, Event
+
+from clip_manager import ClipManager, remove_clips_dir
+from yolo_fish_detector import YoloFishDetector
+from megadetector_detector import MegadetectorDetector
+from utils import *
 
 import cv2
-import numpy as np
-
-# pip3 install onnxruntime-silicon
-import onnxruntime
 
 
-# Get the clips dir for a video
-def get_clips_dir(video_path):
-    return f"{os.path.splitext(video_path)[0]}_clips"
+# We use converted ONNX models for YOLO-Fish (https://github.com/tamim662/YOLO-Fish)
+# and Megadetector (https://github.com/microsoft/CameraTraps)
+def load_detector(type, logger):
+    """
+    Load the appropriate detector based on the type provided.
 
+    Args:
+        type (str): The type of detector to load. Must be either "animal" or "fish".
+        logger (logging.Logger): The logger to use for logging messages.
 
-# Delete old clips directory
-def remove_clips(video_path, logger):
-    try:
-        clips_dir = get_clips_dir(video_path)
-        shutil.rmtree(clips_dir)
-    except Exception as e:
-        logger.warning(f"Unable to remove old clips: {e}")
+    Returns:
+        detector (object): An instance of the appropriate detector.
 
+    Raises:
+        TypeError: If the type provided is not "animal" or "fish".
+    """
+    detector = None
+    if type == "animal":
+        detector = MegadetectorDetector(logger)
+    elif type == "fish":
+        detector = YoloFishDetector(logger)
+    else:
+        raise TypeError("type must be one of animal or fish")
 
-# We use a converted ONNX model (using pytorch-YOLOV4's demo_darknet2onnx.py)
-# of the yolov4 version YOLO-Fish https://github.com/tamim662/YOLO-Fish
-def load_model():
-    onnx_weights_path = "yolov4_1_3_608_608_static.onnx"
-    if not os.path.exists(onnx_weights_path):
-        raise FileNotFoundError(
-            f"The YOLO-Fish model file {onnx_weights_path} does not exist."
-        )
-    session = onnxruntime.InferenceSession(
-        # TODO: can't get "CoreMLExecutionProvider" to work, using CPU
-        onnx_weights_path,
-        providers=["CPUExecutionProvider"],
-    )
-    return session
-
-
-# We use ffmpeg to generate clips. It consumes clip requests from a queue.
-def create_clip_process(queue, stop_event):
-    # If the user does ctrl+c, stop this subprocess
-    while not stop_event.is_set():
-        try:
-            clip_start_time, clip_end_time, clip_count, video_path = queue.get()
-
-            # Check if there are any more clip requests waiting in the queue
-            if clip_start_time is None:
-                break
-
-            # Create a clip for the given detection period with ffmpeg
-            clip_duration = clip_end_time - clip_start_time
-            clip_filename = f"{get_clips_dir(video_path)}/{(clip_count):03}-{format_time(clip_start_time, '_')}-{format_time(clip_end_time, '_')}{os.path.splitext(video_path)[1]}"
-            os.makedirs(os.path.dirname(clip_filename), exist_ok=True)
-            subprocess.run(
-                [
-                    "ffmpeg",
-                    "-hide_banner",
-                    "-loglevel",
-                    "error",
-                    "-y",
-                    "-ss",
-                    str(clip_start_time),
-                    "-t",
-                    str(clip_duration),
-                    "-i",
-                    video_path,
-                    clip_filename,
-                ]
-            )
-        except KeyboardInterrupt:
-            pass
-        except queue.Empty:
-            continue
-
-
-# Add a clip request to the queue
-def create_clip(clip_start_time, clip_end_time, clip_count, video_path, queue, logger):
-    logger.debug(
-        f"Creating clip {clip_count + 1}: start={format_time(clip_start_time)}, end={format_time(clip_end_time)}"
-    )
-    queue.put((clip_start_time, clip_end_time, clip_count + 1, video_path))
-
-
-def nms_cpu(boxes, confs, nms_thresh=0.5, min_mode=False):
-    x1 = boxes[:, 0]
-    y1 = boxes[:, 1]
-    x2 = boxes[:, 2]
-    y2 = boxes[:, 3]
-
-    areas = (x2 - x1) * (y2 - y1)
-    order = confs.argsort()[::-1]
-
-    keep = []
-    while order.size > 0:
-        idx_self = order[0]
-        idx_other = order[1:]
-
-        keep.append(idx_self)
-
-        xx1 = np.maximum(x1[idx_self], x1[idx_other])
-        yy1 = np.maximum(y1[idx_self], y1[idx_other])
-        xx2 = np.minimum(x2[idx_self], x2[idx_other])
-        yy2 = np.minimum(y2[idx_self], y2[idx_other])
-
-        w = np.maximum(0.0, xx2 - xx1)
-        h = np.maximum(0.0, yy2 - yy1)
-        inter = w * h
-
-        if min_mode:
-            over = inter / np.minimum(areas[order[0]], areas[order[1:]])
-        else:
-            over = inter / (areas[order[0]] + areas[order[1:]] - inter)
-
-        inds = np.where(over <= nms_thresh)[0]
-        order = order[inds + 1]
-
-    return np.array(keep)
-
-
-def post_processing(conf_thresh, nms_thresh, output):
-    # [batch, num, 1, 4]
-    box_array = output[0]
-    # [batch, num, num_classes]
-    confs = output[1]
-
-    if type(box_array).__name__ != "ndarray":
-        box_array = box_array.cpu().detach().numpy()
-        confs = confs.cpu().detach().numpy()
-
-    num_classes = confs.shape[2]
-
-    # [batch, num, 4]
-    box_array = box_array[:, :, 0]
-
-    # [batch, num, num_classes] --> [batch, num]
-    max_conf = np.max(confs, axis=2)
-    max_id = np.argmax(confs, axis=2)
-
-    bboxes_batch = []
-    for i in range(box_array.shape[0]):
-        argwhere = max_conf[i] > conf_thresh
-        l_box_array = box_array[i, argwhere, :]
-        l_max_conf = max_conf[i, argwhere]
-        l_max_id = max_id[i, argwhere]
-
-        bboxes = []
-        # nms for each class
-        for j in range(num_classes):
-            cls_argwhere = l_max_id == j
-            ll_box_array = l_box_array[cls_argwhere, :]
-            ll_max_conf = l_max_conf[cls_argwhere]
-            ll_max_id = l_max_id[cls_argwhere]
-
-            keep = nms_cpu(ll_box_array, ll_max_conf, nms_thresh)
-
-            if keep.size > 0:
-                ll_box_array = ll_box_array[keep, :]
-                ll_max_conf = ll_max_conf[keep]
-                ll_max_id = ll_max_id[keep]
-
-                for k in range(ll_box_array.shape[0]):
-                    bboxes.append(
-                        [
-                            ll_box_array[k, 0],
-                            ll_box_array[k, 1],
-                            ll_box_array[k, 2],
-                            ll_box_array[k, 3],
-                            ll_max_conf[k],
-                            ll_max_conf[k],
-                            ll_max_id[k],
-                        ]
-                    )
-
-        bboxes_batch.append(bboxes)
-
-    return bboxes_batch
-
-
-# Define the detect function to run the yolo-fish model on a single frame of video
-# and return a list of bounding boxes and confidence values for fish in the frame
-def detect(session, image_src, confidence_threshold, logger):
-    IN_IMAGE_H = session.get_inputs()[0].shape[2]
-    IN_IMAGE_W = session.get_inputs()[0].shape[3]
-
-    # Format image for Input (608x608), to size and colour used by yolo-fish
-    resized = cv2.resize(
-        image_src, (IN_IMAGE_W, IN_IMAGE_H), interpolation=cv2.INTER_LINEAR
-    )
-    img_in = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
-    img_in = np.transpose(img_in, (2, 0, 1)).astype(np.float32)
-    img_in = np.expand_dims(img_in, axis=0)
-    img_in /= 255.0
-
-    # Compute detections, run on img_in inputs, return outputs
-    # turn outputs into a series of boxes with post_processing.
-    # In debug mode, print out how long the detection took.
-    start_time = time.time()
-    input_name = session.get_inputs()[0].name
-    outputs = session.run(None, {input_name: img_in})
-    end_time = time.time()
-    logger.debug(f"Detection took {end_time - start_time}s")
-
-    boxes = post_processing(confidence_threshold, 0.6, outputs)
-    return boxes
-
-
-def plot_boxes_cv2(img, boxes):
-    img = np.copy(img)
-    width = img.shape[1]
-    height = img.shape[0]
-
-    # Draw a box around each detection with confidence score
-    for i in range(len(boxes)):
-        box = boxes[i]
-        x1 = int(box[0] * width)
-        y1 = int(box[1] * height)
-        x2 = int(box[2] * width)
-        y2 = int(box[3] * height)
-
-        bbox_thick = int(0.4 * (height + width) / 600)
-
-        # Use red so it stands out against background, with red colour from government redside dace illustration
-        bgr = (28, 23, 212)
-
-        if len(box) >= 7:
-            confidence = box[5]
-            msg = "fish " + str(round(confidence, 3))
-            text_size = cv2.getTextSize(msg, 0, 0.7, thickness=bbox_thick // 2)[0]
-            top_left = (x1, y1)
-            bottom_right = (top_left[0] + text_size[0], top_left[1] - text_size[1] - 10)
-
-            cv2.rectangle(
-                img, (x1 - 1, y1), (int(bottom_right[0]), int(bottom_right[1])), bgr, -1
-            )
-            img = cv2.putText(
-                img,
-                msg,
-                (top_left[0], int(top_left[1] - 5)),
-                cv2.FONT_HERSHEY_DUPLEX,
-                0.7,
-                (255, 255, 255),
-                bbox_thick // 2,
-                lineType=cv2.LINE_AA,
-            )
-
-        img = cv2.rectangle(img, (x1, y1), (x2, y2), bgr, bbox_thick)
-    return img
-
-
-def draw_detections(image_src, boxes, video_path):
-    img = plot_boxes_cv2(image_src, boxes[0])
-    cv2.imshow(video_path, img)
-    cv2.waitKey(1)
-
-
-# Format a number of seconds to mm:ss
-def format_time(seconds, delimiter=":"):
-    minutes, seconds = divmod(seconds, 60)
-    return f"{int(minutes):02d}{delimiter}{int(seconds):02d}"
-
-
-# Format a number to percent with 2 decimal places
-def format_percent(num):
-    return "{:.2f}%".format(num * 100)
+    detector.load()
+    return detector
 
 
 # Defining the function process_frames, called in main
-def process_frames(
-    video_path, cap, session, clip_queue, fps, total_frames, logger, args
-):
+def process_frames(video_path, cap, detector, clips, fps, total_frames, logger, args):
+    """
+    Process frames from a video file and create clips based on detections.
+
+    Args:
+        video_path (str): The path to the video file.
+        cap (cv2.VideoCapture): The video capture object.
+        detector (object): The detector to use for detecting objects in frames.
+        clips (ClipManager): The clip manager for managing clips.
+        fps (int): The frames per second of the video.
+        total_frames (int): The total number of frames in the video.
+        logger (logging.Logger): The logger to use for logging messages.
+        args (argparse.Namespace): The command line arguments.
+
+    Returns:
+        clip_count (int): The number of clips created.
+    """
     confidence_threshold = args.confidence
     buffer_seconds = args.buffer
     min_detection_duration = args.min_duration
@@ -288,7 +74,7 @@ def process_frames(
     # Frame number for the next progress message
     next_progress_frame = frames_per_minute
 
-    # Track when there are fish in frame as detection events
+    # Track when there are is something in frame as detection events
     detection_start_time = None
     detection_highest_confidence = 0
     detection_event = False
@@ -319,34 +105,32 @@ def process_frames(
                 break
             frame_count += skip_ahead_frames
 
-            # Before ending this detection period, check if there is a fish
-            # in what comes after it and extend if necessary
-            boxes = detect(session, frame, confidence_threshold, logger)
-            if len(boxes[0]) > 0:
+            # Before ending this detection period, check if there is a anything
+            # else detected in what comes after it, and extend if necessary
+            boxes = detector.detect(frame, confidence_threshold)
+            if len(boxes) > 0:
                 detection_highest_confidence = max(
-                    detection_highest_confidence, max(box[5] for box in boxes[0])
+                    detection_highest_confidence, max(box[4] for box in boxes)
                 )
                 logger.info(
-                    f"Fish detected, extending detection event: {format_time(frame_count / fps)} (max confidence={format_percent(detection_highest_confidence)})"
+                    f"{detector.class_name} detected, extending detection event: {format_time(frame_count / fps)} (max confidence={format_percent(detection_highest_confidence)})"
                 )
                 if show_detections:
-                    draw_detections(frame, boxes, video_path)
+                    detector.draw_detections(frame, boxes, video_path)
                 continue
 
-            # No fish found after this clip, so we're done--create the clip
+            # Nothing found after this clip, so we're done--create the clip
             detection_end_time = frame_count / fps + buffer_seconds
             logger.info(
                 f"Detection period ended: {format_time(detection_end_time)} (duration={format_time(detection_end_time - detection_start_time)}, max confidence={format_percent(detection_highest_confidence)})"
             )
-            create_clip(
+            clip_count += 1
+            clips.create_clip(
                 detection_start_time,
                 detection_end_time,
                 clip_count,
                 video_path,
-                clip_queue,
-                logger,
             )
-            clip_count += 1
 
             # Reset the detection period
             detection_event = False
@@ -357,22 +141,22 @@ def process_frames(
         # vs. every frame for speed (e.g., every 15 of 30fps). We also check
         # the last frame, so we don't miss anything at the edge.
         if frame_count % frames_to_skip == 0 or frame_count == total_frames - 1:
-            boxes = detect(session, frame, confidence_threshold, logger)
+            boxes = detector.detect(frame, confidence_threshold)
 
-            # If one ore more fish were detected
-            if len(boxes[0]) > 0:
+            # If there are one ore more detections
+            if len(boxes) > 0:
                 detection_highest_confidence = max(
-                    detection_highest_confidence, max(box[5] for box in boxes[0])
+                    detection_highest_confidence, max(box[4] for box in boxes)
                 )
 
                 # If we're not already in a detection event, start one
                 if not detection_event:
                     detection_start_time = max(0, frame_count / fps - buffer_seconds)
                     logger.info(
-                        f"Fish detected, starting detection event: {format_time(detection_start_time)} (max confidence={format_percent(detection_highest_confidence)})"
+                        f"{detector.class_name} detected, starting detection event: {format_time(detection_start_time)} (max confidence={format_percent(detection_highest_confidence)})"
                     )
                     if show_detections:
-                        draw_detections(frame, boxes, video_path)
+                        detector.draw_detections(frame, boxes, video_path)
                     detection_event = True
 
         # We've finished processing this frame
@@ -392,28 +176,26 @@ def process_frames(
         logger.info(
             f"Detection period ended: {format_time(detection_end_time)} (duration={format_time(detection_end_time - detection_start_time)}, max confidence={format_percent(detection_highest_confidence)})"
         )
-        create_clip(
+        clip_count += 1
+        clips.create_clip(
             detection_start_time,
             detection_end_time,
             clip_count,
             video_path,
-            clip_queue,
-            logger,
         )
-        clip_count += 1
     return clip_count
-
-
-# Turn a list of one or more filenames, paths, globs, into a list of file paths
-def get_video_paths(file_patterns):
-    video_paths = []
-    for pattern in file_patterns:
-        video_paths.extend(glob.glob(pattern))
-    return video_paths
 
 
 # Main part of program to do setup and start processing frames in each file
 def main(args):
+    """
+    The main function of the program. Sets up the logger, validates arguments,
+    loads the detector, and processes frames from each video file.
+
+    Args:
+        args (argparse.Namespace): The command line arguments.
+    """
+
     # Create a logger for this module and set the log level
     logger = logging.getLogger(__name__)
     logging.basicConfig(level=args.log_level, format="%(message)s")
@@ -425,6 +207,7 @@ def main(args):
     min_detection_duration = args.min_duration
     frames_to_skip = args.skip_frames
     delete_clips = args.delete_clips
+    detection_type = args.type
 
     # Validate argument parameters from user before using them
     if buffer_seconds < 0.0:
@@ -444,16 +227,14 @@ def main(args):
         sys.exit(1)
 
     cap = None
-    clip_queue = None
-    stop_event = Event()
+    clips = None
 
     try:
-        # Create a queue for clips to be processed by ffmpeg
-        clip_queue = Queue()
-        clip_process = Process(
-            target=create_clip_process, args=(clip_queue, stop_event)
-        )
-        clip_process.start()
+        # Create a queue manager for clips to be processed by ffmpeg
+        clips = ClipManager(logger)
+
+        # Load YOLO-Fish or Megadetector, based on `-t` value
+        detector = load_detector(detection_type, logger)
 
         # Keep track of total time to process all files, recording start time
         total_time_start = time.time()
@@ -464,11 +245,7 @@ def main(args):
 
             # If the user requests it via -d flag, remove old clips first
             if delete_clips:
-                logger.debug(f"Removing old clips from {get_clips_dir(video_path)}")
-                remove_clips(video_path, logger)
-
-            # Load YOLO-Fish model
-            session = load_model()
+                remove_clips_dir(video_path, logger)
 
             # Setup video capture for this video file
             cap = cv2.VideoCapture(video_path)
@@ -483,9 +260,9 @@ def main(args):
                 f"Using confidence threshold {confidence_threshold}, minimum clip duration of {min_detection_duration} seconds, and {buffer_seconds} seconds of buffer."
             )
 
-            # Process the video's frames into clips of fish
+            # Process the video's frames into clips
             clip_count = process_frames(
-                video_path, cap, session, clip_queue, fps, total_frames, logger, args
+                video_path, cap, detector, clips, fps, total_frames, logger, args
             )
             file_end_time = time.time()
             logger.info(
@@ -504,7 +281,7 @@ def main(args):
 
     except KeyboardInterrupt:
         logger.warning("Interrupted by user, cleaning up...")
-        stop_event.set()
+        clips.stop()
     except Exception as e:
         logger.error(f"There was an error: {e}")
     finally:
@@ -515,18 +292,31 @@ def main(args):
         cv2.destroyAllWindows()
 
         # Wait for the ffmpeg clip queue to complete before we exit
-        if clip_queue is not None:
-            clip_queue.put((None, None, None, None))
-            clip_process.join()
+        if clips is not None:
+            clips.cleanup()
 
 
 # Define the command line arguments
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Fish Camera Trap")
+    """
+    The entry point of the program. Defines the command line arguments and
+    calls the main function.
+    """
+    parser = argparse.ArgumentParser(
+        description="Automated Camera Trapping Identification and Organization Network (ACTION)"
+    )
     parser.add_argument(
         "filename",
         nargs="+",  # we allow multiple file paths
         help="Path to a video file, multiple video files, or a glob pattern (e.g., ./video/*.mov)",
+    )
+    parser.add_argument(
+        "-t",
+        "--type",
+        choices=["animal", "fish"],
+        default="fish",
+        dest="type",
+        help="Type of camera detection, either animal or fish, defaults to --type fish",
     )
     parser.add_argument(
         "-b",
