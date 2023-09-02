@@ -32,7 +32,6 @@ def get_clips_dir(video_path):
 def remove_clips_dir(video_path, logger):
     """
     Delete the old clips directory for the given video_path,
-    if exists.
 
     Args:
         video_path (str): The path to the video file.
@@ -41,12 +40,43 @@ def remove_clips_dir(video_path, logger):
     Returns:
         None
     """
+    clips_dir = get_clips_dir(video_path)
+    remove_output_dir(clips_dir, logger)
+
+
+def remove_output_dir(output_dir, logger):
+    """
+    Delete a common output dir for video clips.
+
+    Args:
+        output_dir (str): The path to remove.
+        logger (Logger): The logger object.
+
+    Returns:
+        None
+    """
     try:
-        clips_dir = get_clips_dir(video_path)
-        logger.debug(f"Removing old clips from {clips_dir}")
-        shutil.rmtree(clips_dir)
+        logger.debug(f"Removing old clips from {output_dir}")
+        shutil.rmtree(output_dir, ignore_errors=True)
     except Exception as e:
         logger.warning(f"Unable to remove old clips: {e}")
+
+
+def create_output_dir(output_dir):
+    """
+    Make sure the output dir exists
+
+    Args:
+        output_dir (str): The path to create.
+
+    Returns:
+        None
+    """
+    if os.path.exists(output_dir):
+        if not os.path.isdir(output_dir):
+            raise ValueError(f"{output_dir} is a file, not a directory.")
+    else:
+        os.makedirs(output_dir, exist_ok=True)
 
 
 class ClipManager:
@@ -57,26 +87,31 @@ class ClipManager:
 
     Attributes:
         logger (Logger): The logger object.
+        output_dir (string): Optional base path for storing clips
         clip_queue (Queue): The queue of clips.
         stop_event (Event): The stop event for the clip process.
         clip_process (Process): The clip process.
+        clip_count (int): The current clip count.
     """
 
-    def __init__(self, logger):
+    def __init__(self, logger, output_dir):
         """
         The constructor for the ClipManager class. It manages
         the queue and process for ffmpeg.
 
         Args:
             logger (Logger): The logger object.
+            output_dir (string): Optional base path for storing clips
         """
         self.logger = logger
+        self.output_dir = output_dir
         self.clip_queue = Queue()
         self.stop_event = Event()
         self.clip_process = Process(
             target=self.create_clip_process, args=(self.clip_queue, self.stop_event)
         )
         self.clip_process.start()
+        self.clip_count = 0
 
     def create_clip_process(self, queue, stop_event):
         """
@@ -101,8 +136,12 @@ class ClipManager:
 
                 # Create a clip for the given detection period with ffmpeg
                 clip_duration = clip_end_time - clip_start_time
-                clip_filename = f"{get_clips_dir(video_path)}/{(clip_count):03}-{format_time(clip_start_time, '_')}-{format_time(clip_end_time, '_')}.mp4"
-                os.makedirs(os.path.dirname(clip_filename), exist_ok=True)
+                base_dir = (
+                    self.output_dir if self.output_dir else get_clips_dir(video_path)
+                )
+                clip_filename = f"{base_dir}/{(clip_count):04}-{format_time(clip_start_time, '_')}-{format_time(clip_end_time, '_')}.mp4"
+                create_output_dir(os.path.dirname(clip_filename))
+
                 subprocess.run(
                     [
                         "ffmpeg",
@@ -128,7 +167,7 @@ class ClipManager:
             except Empty:
                 continue
 
-    def create_clip(self, clip_start_time, clip_end_time, clip_count, video_path):
+    def create_clip(self, clip_start_time, clip_end_time, video_path):
         """
         Add a clip request to the queue, which will eventually
         create a new clip file.
@@ -136,16 +175,18 @@ class ClipManager:
         Args:
             clip_start_time (float): The start time of the clip.
             clip_end_time (float): The end time of the clip.
-            clip_count (int): The count of the clip.
             video_path (str): The path to the video file.
 
         Returns:
             None
         """
+        self.clip_count += 1
         self.logger.debug(
-            f"Creating clip {clip_count}: start={format_time(clip_start_time)}, end={format_time(clip_end_time)}"
+            f"Creating clip {self.clip_count}: start={format_time(clip_start_time)}, end={format_time(clip_end_time)}"
         )
-        self.clip_queue.put((clip_start_time, clip_end_time, clip_count, video_path))
+        self.clip_queue.put(
+            (clip_start_time, clip_end_time, self.clip_count, video_path)
+        )
 
     def stop(self):
         """
@@ -169,3 +210,22 @@ class ClipManager:
             self.logger.debug("Waiting for remaining clips to be saved")
             self.clip_queue.put((None, None, None, None))
             self.clip_process.join()
+
+    def reset_clip_count(self):
+        """
+        Reset the clip count to 0.
+
+        Returns:
+            None
+        """
+        self.logger.debug("Resetting clip manager clip_count to 0")
+        self.clip_count = 0
+
+    def get_clip_count(self):
+        """
+        Get the current clip count.
+
+        Returns:
+            int: The current clip count.
+        """
+        return self.clip_count
