@@ -137,27 +137,38 @@ class MegadetectorDetector(BaseDetector):
     post-processing of the model's outputs.
     """
 
-    def __init__(self, logger):
+    def __init__(self, logger, min_duration, buffer, confidence):
         """
         Initialize the MegadetectorDetector class.
 
         Args:
             logger (Logger): Logger object for logging.
+            min_duration (float): The minimum duration of a generated clip (defaults to 15.0)
+            buffer (float): An optional number of seconds to add before/after a clip (defaults to 5.0)
+            confidence (float): The confidence level to use (defaults to 0.40)
+
         """
         logger.info(
             "Initializing Megadetector Model and Optimizing (this will take a minute...)"
         )
+        # Use some defaults if any of these aren't already set
+        min_duration = 15.0 if min_duration is None else min_duration
+        buffer = 5.0 if buffer is None else buffer
+        confidence = 0.40 if confidence is None else confidence
         providers = get_available_providers()
         super().__init__(
             logger,
             megadetector_model_path,
             megadetector_image_width,
             megadetector_image_height,
+            min_duration,
+            buffer,
+            confidence,
             "Animal",
             providers,
         )
 
-    def post_processing(self, outputs, confidence_threshold):
+    def post_processing(self, outputs):
         """
         Perform post-processing on the model's outputs. This includes non-max
         suppression, filtering based on confidence threshold, and conversion of
@@ -165,7 +176,6 @@ class MegadetectorDetector(BaseDetector):
 
         Args:
             outputs (numpy array): Outputs from the model.
-            confidence_threshold (float): Confidence threshold for filtering.
 
         Returns:
             list: Post-processed predictions.
@@ -173,7 +183,7 @@ class MegadetectorDetector(BaseDetector):
         preds = []
         for p in outputs[0]:
             # TODO: what to use for IOU_THRESHOLD? Defaults to 0.45 in run-onnx.py
-            p = non_max_suppression(p, confidence_threshold, 0.45)
+            p = non_max_suppression(p, self.confidence, 0.45)
             # Filter out predictions for animals (class=0)
             p = [pred for pred in p if pred[5] == 0]
             # If there are predictions, convert absolute coordinates to relative
