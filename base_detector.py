@@ -27,6 +27,9 @@ class BaseDetector:
         model_path,
         input_image_height,
         input_image_width,
+        min_duration,
+        buffer,
+        confidence,
         class_name,
         providers=["CPUExecutionProvider"],
     ):
@@ -38,6 +41,9 @@ class BaseDetector:
             model_path: Path to the model file.
             input_image_height: Height of the input image.
             input_image_width: Width of the input image.
+            min_duration (float): The minimum duration of a generated clip
+            buffer (float): An optional number of seconds to add before/after a clip
+            confidence (float): The confidence level to use
             class_name: Name of the class to be detected.
             providers: List of providers for ONNX runtime. Default is CPUExecutionProvider.
         """
@@ -45,6 +51,9 @@ class BaseDetector:
         self.model_path = model_path
         self.input_image_height = input_image_height
         self.input_image_width = input_image_width
+        self.min_duration = min_duration
+        self.buffer = buffer
+        self.confidence = confidence
         self.class_name = class_name
         self.providers = providers
         self.session = None
@@ -65,13 +74,12 @@ class BaseDetector:
             self.model_path, providers=self.providers, sess_options=sess_options
         )
 
-    def detect(self, image_src, confidence_threshold):
+    def detect(self, image_src):
         """
         Detect objects in the provided image.
 
         Args:
             image_src: Source image for object detection.
-            confidence_threshold: Confidence threshold for detection.
 
         Returns:
             List of bounding boxes for detected objects.
@@ -95,7 +103,7 @@ class BaseDetector:
         self.logger.debug(f"Detection took {end_time - start_time}s")
 
         # Process detection outputs into bounding boxes
-        boxes = self.post_processing(outputs, confidence_threshold)
+        boxes = self.post_processing(outputs)
 
         # Return boxes[0] if it exists, otherwise return an empty list
         return boxes[0] if boxes else []
@@ -156,14 +164,13 @@ class BaseDetector:
         cv2.imshow(title, img)
         cv2.waitKey(1)
 
-    def post_processing(self, outputs, confidence_threshold):
+    def post_processing(self, outputs):
         """
         Post-process the detection outputs. See YoloFishDetector and
         MegadetectorDetector for implementations.
 
         Args:
             outputs: Outputs from the detection model.
-            confidence_threshold: Confidence threshold for detection.
 
         Raises:
             NotImplementedError: This method must be implemented by a subclass.
