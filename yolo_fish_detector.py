@@ -75,30 +75,39 @@ class YoloFishDetector(BaseDetector):
     post-processing of the model's outputs.
     """
 
-    def __init__(self, logger):
+    def __init__(self, logger, min_duration, buffer, confidence):
         """
         Initialize the YoloFishDetector class.
 
         Args:
             logger (Logger): Logger object for logging.
+            min_duration (float): The minimum duration of a generated clip (defaults to 3.0)
+            buffer (float): An optional number of seconds to add before/after a clip (defaults to 1.0)
+            confidence (float): The confidence level to use (defaults to 0.45)
         """
         logger.info("Initializing YOLO-Fish Model")
+        # Use some defaults if any of these aren't already set
+        min_duration = 3.0 if min_duration is None else min_duration
+        buffer = 1.0 if buffer is None else buffer
+        confidence = 0.45 if confidence is None else confidence
         super().__init__(
             logger,
             yolo_fish_model_path,
             yolo_fish_image_width,
             yolo_fish_image_height,
+            min_duration,
+            buffer,
+            confidence,
             "Fish",
         )
 
-    def post_processing(self, outputs, confidence_threshold):
+    def post_processing(self, outputs):
         """
         Perform post-processing on the model outputs. This includes non-max
         suppression, and filtering based on confidence threshold.
 
         Args:
             outputs (list): List of model outputs.
-            confidence_threshold (float): Confidence threshold for filtering detections.
 
         Returns:
             list: List of bounding boxes for detected objects.
@@ -131,7 +140,7 @@ class YoloFishDetector(BaseDetector):
         nms_threshold = 0.6
         bboxes_batch = []
         for i in range(box_array.shape[0]):
-            argwhere = box_array[i, :, 4] > confidence_threshold
+            argwhere = box_array[i, :, 4] > self.confidence
             filtered_boxes = box_array[i, argwhere, :]
 
             bboxes = []
