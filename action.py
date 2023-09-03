@@ -9,7 +9,12 @@ import time
 import logging
 import argparse
 
-from clip_manager import ClipManager, remove_clips_dir
+from clip_manager import (
+    ClipManager,
+    remove_clips_dir,
+    remove_output_dir,
+    create_output_dir,
+)
 from yolo_fish_detector import YoloFishDetector
 from megadetector_detector import MegadetectorDetector
 from utils import *
@@ -47,7 +52,15 @@ def load_detector(environment, logger):
 
 # Defining the function process_frames, called in main
 def process_frames(
-    video_path, cap, detector, clips, fps, total_frames, frames_to_skip, logger, args
+    video_path,
+    cap,
+    detector,
+    clips,
+    fps,
+    total_frames,
+    frames_to_skip,
+    logger,
+    args,
 ):
     """
     Process frames from a video file and create clips based on detections.
@@ -64,7 +77,7 @@ def process_frames(
         args (argparse.Namespace): The command line arguments.
 
     Returns:
-        clip_count (int): The number of clips created.
+        None
     """
     confidence_threshold = args.confidence
     buffer_seconds = args.buffer
@@ -82,7 +95,6 @@ def process_frames(
     detection_event = False
 
     frame_count = 0
-    clip_count = 0
 
     # Loop over all frames in the video
     while cap.isOpened():
@@ -126,11 +138,9 @@ def process_frames(
             logger.info(
                 f"Detection period ended: {format_time(detection_end_time)} (duration={format_time(detection_end_time - detection_start_time)}, max confidence={format_percent(detection_highest_confidence)})"
             )
-            clip_count += 1
             clips.create_clip(
                 detection_start_time,
                 detection_end_time,
-                clip_count,
                 video_path,
             )
 
@@ -178,14 +188,11 @@ def process_frames(
         logger.info(
             f"Detection period ended: {format_time(detection_end_time)} (duration={format_time(detection_end_time - detection_start_time)}, max confidence={format_percent(detection_highest_confidence)})"
         )
-        clip_count += 1
         clips.create_clip(
             detection_start_time,
             detection_end_time,
-            clip_count,
             video_path,
         )
-    return clip_count
 
 
 # Main part of program to do setup and start processing frames in each file
@@ -208,6 +215,7 @@ def main(args):
     buffer_seconds = args.buffer
     min_detection_duration = args.min_duration
     delete_clips = args.delete_clips
+    output_dir = args.output_dir
     environment = args.environment
 
     # Validate argument parameters from user before using them
@@ -230,9 +238,17 @@ def main(args):
     cap = None
     clips = None
 
+    # Initialize the output_dir if specified
+    if output_dir:
+        # If `-d`` was specified, delete old clips first
+        if delete_clips:
+            remove_output_dir(output_dir, logger)
+        # Create the output directory if it doesn't exist
+        create_output_dir(output_dir)
+
     try:
         # Create a queue manager for clips to be processed by ffmpeg
-        clips = ClipManager(logger)
+        clips = ClipManager(logger, output_dir)
 
         # Load YOLO-Fish or Megadetector, based on `-e` value
         detector = load_detector(environment, logger)
@@ -249,8 +265,9 @@ def main(args):
 
             file_start_time = time.time()
 
-            # If the user requests it via -d flag, remove old clips first
-            if delete_clips:
+            # If the user requests it via -d flag, and isn't using a common output_dir
+            # remove old clips first
+            if not output_dir and delete_clips:
                 remove_clips_dir(video_path, logger)
 
             # Setup video capture for this video file
@@ -267,8 +284,14 @@ def main(args):
                 f"Using confidence threshold {confidence_threshold}, minimum clip duration of {min_detection_duration} seconds, and {buffer_seconds} seconds of buffer."
             )
 
+            # If we're not using a common clips dir, reset the counter for future clips
+            if not output_dir:
+                clips.reset_clip_count()
+
+            clip_count_before = clips.get_clip_count()
+
             # Process the video's frames into clips
-            clip_count = process_frames(
+            process_frames(
                 video_path,
                 cap,
                 detector,
@@ -279,19 +302,26 @@ def main(args):
                 logger,
                 args,
             )
+
+            clip_count_after = clips.get_clip_count()
+            clips_processed = clip_count_after - clip_count_before
+
             file_end_time = time.time()
             logger.info(
-                f"Finished file {i} of {len(video_paths)}: {video_path} (total time to process file {format_time(file_end_time - file_start_time)}). Processed {total_frames} frames into {clip_count} clips"
+                f"Finished file {i} of {len(video_paths)}: {video_path} (total time to process file {format_time(file_end_time - file_start_time)}). Processed {total_frames} frames into {clips_processed} clips"
             )
 
             # Clean-up the resources we have open, if necessary
             if cap is not None:
                 cap.release()
 
+            cv2.destroyAllWindows()
+            cv2.waitKey(1)
+
         # Keep track of total time to process all files, recording end time
         total_time_end = time.time()
         logger.info(
-            f"\nFinished processing, total time for {len(video_paths)} files: {format_time(total_time_end - total_time_start)}"
+            f"\nFinished. Total time for {len(video_paths)} files: {format_time(total_time_end - total_time_start)}"
         )
 
     except KeyboardInterrupt:
@@ -305,6 +335,7 @@ def main(args):
             cap.release()
 
         cv2.destroyAllWindows()
+        cv2.waitKey(1)
 
         # Wait for the ffmpeg clip queue to complete before we exit
         if clips is not None:
@@ -370,6 +401,12 @@ if __name__ == "__main__":
         action="store_true",
         dest="delete_clips",
         help="Whether to delete previous clips before processing video",
+    )
+    parser.add_argument(
+        "-o",
+        "--output-dir",
+        dest="output_dir",
+        help="Output directory to use for all clips",
     )
     parser.add_argument(
         "-s",
