@@ -24,25 +24,39 @@ import cv2
 
 # We use converted ONNX models for YOLO-Fish (https://github.com/tamim662/YOLO-Fish)
 # and Megadetector (https://github.com/microsoft/CameraTraps)
-def load_detector(environment, logger):
+def load_detector(environment, min_duration, buffer, confidence, logger):
     """
     Load the appropriate detector based on the environment provided.
 
     Args:
         environment (str): The type of detector to load. Must be either "aquatic" or "terrestrial".
+        min_duration (float): The minimum duration of a generated clip
+        buffer (float): An optional number of seconds to add before/after a clip
+        confidence (float): The confidence level to use
         logger (logging.Logger): The logger to use for logging messages.
 
     Returns:
         detector (object): An instance of the appropriate detector.
 
     Raises:
-        TypeError: If the environment provided is not "aquatic" or "terrestrial".
+        TypeError: If the any args are not of the correct type
     """
+
+    # Make sure any user-provided flags for detection are valid before we use them
+    if buffer and buffer < 0.0:
+        raise TypeError("Error: minimum buffer cannot be negative")
+
+    if min_duration and min_duration <= 0.0:
+        raise TypeError("Error: minimum duration must be greater than 0.0")
+
+    if confidence and (confidence <= 0.0 or confidence > 1.0):
+        raise TypeError("Error: confidence must be greater than 0.0 and less than 1.0")
+
     detector = None
     if environment == "terrestrial":
-        detector = MegadetectorDetector(logger)
+        detector = MegadetectorDetector(logger, min_duration, buffer, confidence)
     elif environment == "aquatic":
-        detector = YoloFishDetector(logger)
+        detector = YoloFishDetector(logger, min_duration, buffer, confidence)
     else:
         raise TypeError("environment must be one of aquatic or terrestrial")
 
@@ -79,9 +93,9 @@ def process_frames(
     Returns:
         None
     """
-    confidence_threshold = args.confidence
-    buffer_seconds = args.buffer
-    min_detection_duration = args.min_duration
+    confidence_threshold = detector.confidence
+    buffer_seconds = detector.buffer
+    min_detection_duration = detector.min_duration
     show_detections = args.show_detections
 
     # Number of frames per minute of video time
@@ -121,7 +135,7 @@ def process_frames(
 
             # Before ending this detection period, check if there is a anything
             # else detected in what comes after it, and extend if necessary
-            boxes = detector.detect(frame, confidence_threshold)
+            boxes = detector.detect(frame)
             if len(boxes) > 0:
                 detection_highest_confidence = max(
                     detection_highest_confidence, max(box[4] for box in boxes)
@@ -153,7 +167,7 @@ def process_frames(
         # vs. every frame for speed (e.g., every 15 of 30fps). We also check
         # the last frame, so we don't miss anything at the edge.
         if frame_count % frames_to_skip == 0 or frame_count == total_frames - 1:
-            boxes = detector.detect(frame, confidence_threshold)
+            boxes = detector.detect(frame)
 
             # If there are one ore more detections
             if len(boxes) > 0:
@@ -209,30 +223,24 @@ def main(args):
     logger = logging.getLogger(__name__)
     logging.basicConfig(level=args.log_level, format="%(message)s")
 
-    video_paths = get_video_paths(args.filename)
-    logger.debug(f"Got input files: {video_paths}")
-    confidence_threshold = args.confidence
-    buffer_seconds = args.buffer
-    min_detection_duration = args.min_duration
     delete_clips = args.delete_clips
     output_dir = args.output_dir
-    environment = args.environment
+    video_paths = get_video_paths(args.filename)
+    logger.debug(f"Got input files: {video_paths}")
 
     # Validate argument parameters from user before using them
     if len(video_paths) < 1:
         logger.error("Error: you must specify one or more video filenames to process")
         sys.exit(1)
 
-    if buffer_seconds < 0.0:
-        logger.error("Error: minimum buffer cannot be negative")
-        sys.exit(1)
-
-    if min_detection_duration <= 0.0:
-        logger.error("Error: minimum duration must be greater than 0.0")
-        sys.exit(1)
-
-    if confidence_threshold <= 0.0 or confidence_threshold > 1.0:
-        logger.error("Error: confidence must be greater than 0.0 and less than 1.0")
+    # Load YOLO-Fish or Megadetector, based on `-e` value
+    detector = None
+    try:
+        detector = load_detector(
+            args.environment, args.min_duration, args.buffer, args.confidence, logger
+        )
+    except Exception as e:
+        logger.error(f"There was an error: {e}")
         sys.exit(1)
 
     cap = None
@@ -249,9 +257,6 @@ def main(args):
     try:
         # Create a queue manager for clips to be processed by ffmpeg
         clips = ClipManager(logger, output_dir)
-
-        # Load YOLO-Fish or Megadetector, based on `-e` value
-        detector = load_detector(environment, logger)
 
         # Keep track of total time to process all files, recording start time
         total_time_start = time.time()
@@ -281,7 +286,7 @@ def main(args):
                 f"\nStarting file {i} of {len(video_paths)}: {video_path} - {format_time(duration)} - {total_frames} frames at {fps} fps, skipping every {frames_to_skip} frames"
             )
             logger.info(
-                f"Using confidence threshold {confidence_threshold}, minimum clip duration of {min_detection_duration} seconds, and {buffer_seconds} seconds of buffer."
+                f"Using confidence threshold {detector.confidence}, minimum clip duration of {detector.min_duration} seconds, and {detector.buffer} seconds of buffer."
             )
 
             # If we're not using a common clips dir, reset the counter for future clips
@@ -367,7 +372,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-b",
         "--buffer",
-        default=0.0,
+        default=None,
         type=float,
         dest="buffer",
         help="Number of seconds to add before and after detection (e.g., 1.0), cannot be negative",
@@ -375,16 +380,16 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c",
         "--confidence",
-        default=0.25,
         type=float,
+        default=None,
         dest="confidence",
         help="Confidence threshold for detection (e.g., 0.45), must be greater than 0.0 and less than 1.0",
     )
     parser.add_argument(
         "-m",
         "--minimum-duration",
-        default=1.0,
         type=float,
+        default=None,
         dest="min_duration",
         help="Minimum duration for clips in seconds (e.g., 2.0), must be greater than 0.0",
     )
