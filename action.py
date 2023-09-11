@@ -93,7 +93,6 @@ def process_frames(
     Returns:
         None
     """
-    confidence_threshold = detector.confidence
     buffer_seconds = detector.buffer
     min_detection_duration = detector.min_duration
     show_detections = args.show_detections
@@ -119,49 +118,68 @@ def process_frames(
 
         # If a detection is already happening, then we know we're going to
         # record for a given period, so we can skip ahead to the frame where
-        # the detection period ends. However, check the next frame after this
-        # to see if we should end this detection period or extend it.
+        # the detection period ends. However, we then need to check *all* the
+        # frames after this within the buffer period (i.e., so we don't overlap
+        # with the end buffer period in the previous clip).  If we detect something
+        # in these frames, we should extend this detection period; otherwise
+        # we end it and create a new clip.
         if detection_event:
-            skip_ahead_frames = int(min_detection_duration * fps + buffer_seconds)
+            # Calculate the number of frames to skip ahead. We know that we
+            # want to record for a minimum duration, and potentially we add
+            # a buffer period in seconds.
+            skip_ahead_frames = int((min_detection_duration + buffer_seconds) * fps)
             logger.debug(f"Detection event, skipping ahead {skip_ahead_frames} frames")
 
-            # Skip ahead the number of frames that will be in the clip (i.e.,
-            # don't bother checking these, they are getting recorded already)
+            # Skip ahead the number of frames that will be in the clip
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_count + skip_ahead_frames)
-            ret, frame = cap.read()
-            if not ret:
-                break
             frame_count += skip_ahead_frames
 
-            # Before ending this detection period, check if there is a anything
-            # else detected in what comes after it, and extend if necessary
-            boxes = detector.detect(frame)
-            if len(boxes) > 0:
-                detection_highest_confidence = max(
-                    detection_highest_confidence, max(box[4] for box in boxes)
-                )
+            # Check some frames within the buffer period for a detection, to see if
+            # we should extend this detection period, or if it's OK to end it. NOTE:
+            # if `buffer_seconds` is 0, at least check the next frame.
+            for i in range(max(1, int(buffer_seconds * fps))):
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                frame_count += 1
+
+                # Only process frames that are multiples of frames_to_skip
+                # or the last frame in the video.
+                if i % frames_to_skip == 0 or frame_count == total_frames - 1:
+                    logger.debug(
+                        f"Checking frame {frame_count} before ending detection event"
+                    )
+                    # If a detection is made, extend the current detection period
+                    boxes = detector.detect(frame)
+                    if len(boxes) > 0:
+                        detection_highest_confidence = max(
+                            detection_highest_confidence, max(box[4] for box in boxes)
+                        )
+                        logger.info(
+                            f"{detector.class_name} detected, extending detection event: {format_time(frame_count / fps + buffer_seconds)} (max confidence={format_percent(detection_highest_confidence)})"
+                        )
+                        if show_detections:
+                            detector.draw_detections(frame, boxes, video_path)
+                        break
+            else:
+                # If no detection was made within the buffer period, and we didn't
+                # extend, end the detection period now and create a new clip.
+                detection_end_time = frame_count / fps + buffer_seconds
                 logger.info(
-                    f"{detector.class_name} detected, extending detection event: {format_time(frame_count / fps)} (max confidence={format_percent(detection_highest_confidence)})"
+                    f"Detection period ended: {format_time(detection_end_time)} (duration={format_time(detection_end_time - detection_start_time)}, max confidence={format_percent(detection_highest_confidence)})"
                 )
-                if show_detections:
-                    detector.draw_detections(frame, boxes, video_path)
+                clips.create_clip(
+                    detection_start_time,
+                    detection_end_time,
+                    video_path,
+                )
+
+                # Reset the detection period
+                detection_event = False
+                detection_highest_confidence = 0
+
+                # Start again reading the next frame
                 continue
-
-            # Nothing found after this clip, so we're done--create the clip
-            detection_end_time = frame_count / fps + buffer_seconds
-            logger.info(
-                f"Detection period ended: {format_time(detection_end_time)} (duration={format_time(detection_end_time - detection_start_time)}, max confidence={format_percent(detection_highest_confidence)})"
-            )
-            clips.create_clip(
-                detection_start_time,
-                detection_end_time,
-                video_path,
-            )
-
-            # Reset the detection period
-            detection_event = False
-            detection_highest_confidence = 0
-            continue
 
         # If we're not already in a detection event, process every n frames
         # vs. every frame for speed (e.g., every 15 of 30fps). We also check
@@ -179,7 +197,7 @@ def process_frames(
                 if not detection_event:
                     detection_start_time = max(0, frame_count / fps - buffer_seconds)
                     logger.info(
-                        f"{detector.class_name} detected, starting detection event: {format_time(detection_start_time)} (max confidence={format_percent(detection_highest_confidence)})"
+                        f"{detector.class_name} detected, starting detection event: {format_time(frame_count / fps)} (max confidence={format_percent(detection_highest_confidence)})"
                     )
                     if show_detections:
                         detector.draw_detections(frame, boxes, video_path)
