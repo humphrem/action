@@ -1,0 +1,26 @@
+[project]
+name = "action"
+version = "0.1.0"
+description = "Automated Camera Trapping Identification and Organization Network (ACTION)"
+repository = "https://github.com/humphrem/action"
+authors = [ "Morgan Humphrey", "David Humphrey"]
+channels = ["conda-forge"]
+platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
+
+[tasks]
+install-requirements = "pip install -r requirements.txt"
+download-models = "git lfs pull"
+setup = {depends_on=["install-requirements", "download-models"]}
+
+[target.osx-arm64.tasks]
+# On macOS ARM we use a different ONNX Runtime optimized for Apple Silicon
+install-requirements = "pip install -r requirements.apple-silicon.txt"
+
+[dependencies]
+python = "3.11.0.*"
+ffmpeg = "6.0.0.*"
+pip = "23.2.1.*"
+git-lfs = "3.4.0.*"
+git = "2.42.0.*"
+numpy = "1.26.0.*"
+opencv = "4.8.1.*"
