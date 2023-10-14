@@ -154,11 +154,8 @@ cython_debug/
 # Ignore video files
 video/
 
-# Ignore the yolo-fish model because it is too large
-yolov4_1_3_608_608_static.onnx
-
-# Ignore the megadetector model because it is to large
-md_v5a_1_3_640_640_static.onnx
-
 # Ignore Mac Finder files
 .DS_Store
+
+# Ingnore the .pixi/ folder for dependencies
+.pixi/
