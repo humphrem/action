@@ -17,7 +17,7 @@ from clip_manager import (
 )
 from yolo_fish_detector import YoloFishDetector
 from megadetector_detector import MegadetectorDetector
-from utils import *
+from utils import format_time, format_percent, get_video_paths
 
 import cv2
 
