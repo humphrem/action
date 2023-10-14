@@ -10,8 +10,8 @@ from onnxruntime.capi._pybind_state import get_available_providers
 
 from base_detector import BaseDetector
 
-# The Megadetector ONNX model should be in the same directory as this file
-megadetector_model_path = "md_v5a_1_3_640_640_static.onnx"
+# The Megadetector ONNX model should be in the ./models directory and needs to be pulled with git-lfs
+megadetector_model_path = "models/md_v5a_1_3_640_640_static.onnx"
 # Input images should be 640 x 640
 megadetector_image_width = 640
 megadetector_image_height = 640

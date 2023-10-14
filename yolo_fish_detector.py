@@ -13,8 +13,8 @@ from base_detector import BaseDetector
 # https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/master/License.txt
 
 
-# The YOLO-Fish ONNX model should be in the same directory as this file
-yolo_fish_model_path = "yolov4_1_3_608_608_static.onnx"
+# The YOLO-Fish ONNX model should be in the ./models directory and needs to be pulled with git-lfs
+yolo_fish_model_path = "models/yolov4_1_3_608_608_static.onnx"
 # Input images should be 608 x 608
 yolo_fish_image_width = 608
 yolo_fish_image_height = 608

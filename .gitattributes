@@ -1,5 +1,6 @@
 # Project specific information for git
 # telling it we always use Unix line endings
-
 # Auto detect text files and perform LF normalization
 * text=auto
+# We store our ONNX models in git-lfs
+*.onnx filter=lfs diff=lfs merge=lfs -text
