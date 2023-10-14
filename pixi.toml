@@ -9,8 +9,7 @@ platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
 
 [tasks]
 install-requirements = "pip install -r requirements.txt"
-download-models = "git lfs pull"
-setup = {depends_on=["install-requirements", "download-models"]}
+setup = {depends_on=["install-requirements"]}
 lint = "ruff check ."
 
 [target.osx-arm64.tasks]
@@ -21,7 +20,6 @@ install-requirements = "pip install -r requirements.apple-silicon.txt"
 python = "3.11.0.*"
 ffmpeg = "6.0.0.*"
 pip = "23.2.1.*"
-git-lfs = "3.4.0.*"
 git = "2.42.0.*"
 numpy = "1.26.0.*"
 ruff = "0.0.292.*"
