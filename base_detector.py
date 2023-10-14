@@ -31,7 +31,7 @@ class BaseDetector:
         buffer,
         confidence,
         class_name,
-        providers=["CPUExecutionProvider"],
+        providers=None,
     ):
         """
         Initialize the detector with model parameters and provider.
@@ -47,6 +47,8 @@ class BaseDetector:
             class_name: Name of the class to be detected.
             providers: List of providers for ONNX runtime. Default is CPUExecutionProvider.
         """
+        if providers is None:
+            providers = ["CPUExecutionProvider"]
         self.logger = logger
         self.model_path = model_path
         self.input_image_height = input_image_height

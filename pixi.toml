@@ -11,6 +11,7 @@ platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
 install-requirements = "pip install -r requirements.txt"
 download-models = "git lfs pull"
 setup = {depends_on=["install-requirements", "download-models"]}
+lint = "ruff check ."
 
 [target.osx-arm64.tasks]
 # On macOS ARM we use a different ONNX Runtime optimized for Apple Silicon
@@ -23,3 +24,4 @@ pip = "23.2.1.*"
 git-lfs = "3.4.0.*"
 git = "2.42.0.*"
 numpy = "1.26.0.*"
+ruff = "0.0.292.*"
