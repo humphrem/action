@@ -159,3 +159,6 @@ video/
 
 # Ingnore the .pixi/ folder for dependencies
 .pixi/
+
+# Ignore ONNX model files
+*.onnx
