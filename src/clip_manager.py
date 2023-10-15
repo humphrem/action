@@ -12,7 +12,7 @@ import subprocess
 from multiprocessing import Process, Queue, Event
 from queue import Empty
 
-from utils import format_time
+from .utils import format_time
 
 
 def get_clips_dir(video_path):

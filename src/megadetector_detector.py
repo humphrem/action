@@ -8,7 +8,7 @@ of the model's outputs.
 import numpy as np
 from onnxruntime.capi._pybind_state import get_available_providers
 
-from base_detector import BaseDetector
+from .base_detector import BaseDetector
 
 # The Megadetector ONNX model should be in the ./models directory and needs to be pulled with git-lfs
 megadetector_model_path = "models/md_v5a_1_3_640_640_static.onnx"
