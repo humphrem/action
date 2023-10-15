@@ -18,10 +18,16 @@ The easiest way to use it is with the [pixi](https://prefix.dev/docs/pixi/overvi
 
 ### Installation Steps
 
-1. Clone this repo using `git clone https://github.com/humphrem/action.git`. NOTE: the repo includes large `.onnx` model files, which will get downloaded if you have [`git-lfs`](https://git-lfs.com/) installed (otherwise we'll get them as part of the setup below).
+1. Clone this repo using `git clone https://github.com/humphrem/action.git`
 2. [Install pixi](https://prefix.dev/docs/pixi/overview#installation)
 3. Start a terminal and navigate to the root of the Action project folder you just cloned, `cd action`
-4. Enter the command `pixi run setup` to download, install, and setup everything you'll need
+4. Enter the command `pixi run setup` to download the models (these are large, ~778M, and will take some time), install dependencies, and set up everything you'll need
+
+```sh
+git clone https://github.com/humphrem/action.git
+cd action
+pixi run setup
+```
 
 ### Using the Pixi Shell Environment
 
