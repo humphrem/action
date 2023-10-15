@@ -143,18 +143,18 @@ class MegadetectorDetector(BaseDetector):
 
         Args:
             logger (Logger): Logger object for logging.
-            min_duration (float): The minimum duration of a generated clip (defaults to 15.0)
+            min_duration (float): The minimum duration of a generated clip (defaults to 10.0)
             buffer (float): An optional number of seconds to add before/after a clip (defaults to 5.0)
-            confidence (float): The confidence level to use (defaults to 0.40)
+            confidence (float): The confidence level to use (defaults to 0.50)
 
         """
         logger.info(
             "Initializing Megadetector Model and Optimizing (this will take a minute...)"
         )
         # Use some defaults if any of these aren't already set
-        min_duration = 15.0 if min_duration is None else min_duration
+        min_duration = 10.0 if min_duration is None else min_duration
         buffer = 5.0 if buffer is None else buffer
-        confidence = 0.40 if confidence is None else confidence
+        confidence = 0.50 if confidence is None else confidence
         providers = get_available_providers()
         super().__init__(
             logger,

@@ -83,13 +83,13 @@ class YoloFishDetector(BaseDetector):
             logger (Logger): Logger object for logging.
             min_duration (float): The minimum duration of a generated clip (defaults to 3.0)
             buffer (float): An optional number of seconds to add before/after a clip (defaults to 1.0)
-            confidence (float): The confidence level to use (defaults to 0.45)
+            confidence (float): The confidence level to use (defaults to 0.50)
         """
         logger.info("Initializing YOLO-Fish Model")
         # Use some defaults if any of these aren't already set
         min_duration = 3.0 if min_duration is None else min_duration
         buffer = 1.0 if buffer is None else buffer
-        confidence = 0.45 if confidence is None else confidence
+        confidence = 0.50 if confidence is None else confidence
         super().__init__(
             logger,
             yolo_fish_model_path,
