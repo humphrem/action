@@ -1,0 +1,6 @@
+Automated Camera Trapping Identification and Organization Network (ACTION)
+Copyright 2023 Morgan Humphrey, David Humphrey
+
+This software contains code derived from https://github.com/parlaynu/megadetector-v5-onnx, used under the MIT License (https://github.com/parlaynu/megadetector-v5-onnx/blob/main/LICENSE), and https://github.com/Tianxiaomo/pytorch-YOLOv4, used under the Apache-2.0 License (https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/master/License.txt).
+
+This software uses derived machine learning models (ONNX formatted) from https://github.com/tamim662/YOLO-Fish (GPL-3.0 - https://github.com/tamim662/YOLO-Fish/blob/main/LICENSE) and https://github.com/microsoft/CameraTraps (MIT - https://github.com/microsoft/CameraTraps/blob/main/LICENSE), which are also made available.

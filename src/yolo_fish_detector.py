@@ -7,7 +7,7 @@ of the model's outputs.
 
 import numpy as np
 
-from base_detector import BaseDetector
+from .base_detector import BaseDetector
 
 # Code inspired by https://github.com/Tianxiaomo/pytorch-YOLOv4, used under Apache-2.0 License
 # https://github.com/Tianxiaomo/pytorch-YOLOv4/blob/master/License.txt
