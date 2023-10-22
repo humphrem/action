@@ -1,6 +1,6 @@
 [project]
 name = "action"
-version = "0.1.0"
+version = "1.0.0-alpha"
 description = "Automated Camera Trapping Identification and Organization Network (ACTION)"
 repository = "https://github.com/humphrem/action"
 readme = "README.md"
@@ -11,8 +11,9 @@ channels = ["conda-forge"]
 platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
 
 [tasks]
+download-models = "python scripts/download-models.py"
 install-requirements = "pip install -r requirements.txt"
-setup = {depends_on=["install-requirements"]}
+setup = {depends_on=["install-requirements", "download-models"]}
 lint = "ruff check ."
 
 [target.osx-arm64.tasks]
@@ -26,3 +27,4 @@ pip = "23.2.1.*"
 git = "2.42.0.*"
 numpy = "1.26.0.*"
 ruff = "0.0.292.*"
+requests = "2.31.0.*"
