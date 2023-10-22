@@ -16,10 +16,10 @@ The easiest way to use it is with the [pixi](https://prefix.dev/docs/pixi/overvi
 
 ### Installation Steps
 
-1. Clone this repo using `git clone https://github.com/humphrem/action.git`
+1. Download the **Source code** (`zip` or `tar.gz`) from the [Releases](https://github.com/humphrem/action/releases) page, or use Git to clone this repo using `git clone https://github.com/humphrem/action.git`
 2. [Install pixi](https://prefix.dev/docs/pixi/overview#installation)
-3. Start a terminal and navigate to the root of the Action project folder you just cloned, `cd action`
-4. Enter the command `pixi run setup` to download the models (these are large, ~778M, and will take some time), install dependencies, and set up everything you'll need
+3. Start a terminal and navigate to the root of the Action project folder you just downloaded or cloned, `cd action`
+4. Enter the command `pixi run setup` to install dependencies and to download the AI models (NOTE: these are large, ~778M, and will take some time to download)
 
 ```sh
 git clone https://github.com/humphrem/action.git
@@ -48,8 +48,8 @@ exit
 With all dependencies installed and the models downloaded to the `models/` directory, you can now run action:
 
 ```sh
-pixi shell
-python3 action.py
+$ pixi shell
+$ python3 action.py
 
 usage: action.py [-h] [-e {terrestrial,aquatic}] [-b BUFFER] [-c CONFIDENCE]
                  [-m MIN_DURATION] [-f SKIP_FRAMES] [-d] [-o OUTPUT_DIR] [-s]
