@@ -1,6 +1,6 @@
 [project]
 name = "action"
-version = "1.0.0-alpha"
+version = "1.0.0-beta"
 description = "Automated Camera Trapping Identification and Organization Network (ACTION)"
 repository = "https://github.com/humphrem/action"
 readme = "README.md"
