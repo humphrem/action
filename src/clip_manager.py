@@ -159,6 +159,8 @@ class ClipManager:
                         "libx264",  # use H.264 for video codec to maximize compatibility
                         "-c:a",
                         "aac",  # use Advanced Audio Coding (AAC) for audio compatibility
+                        "-pix_fmt",  # use YUV planar color space with 4:2:0 chroma subsampling (QuickTime)
+                        "yuv420p",  # see https://trac.ffmpeg.org/wiki/Encode/H.264#Encodingfordumbplayers
                         clip_filename,
                     ]
                 )
