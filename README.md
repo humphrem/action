@@ -17,7 +17,7 @@ The easiest way to use it is with the [pixi](https://prefix.dev/docs/pixi/overvi
 ### Installation Steps
 
 1. Download the **Source code** (`zip` or `tar.gz`) from the [Releases](https://github.com/humphrem/action/releases) page, or use Git to clone this repo using `git clone https://github.com/humphrem/action.git`
-2. [Install pixi](https://prefix.dev/docs/pixi/overview#installation) using the instructions for your operating system.  NOTE: on Windows, if using the [`iwr` command](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/invoke-webrequest?view=powershell-7.3), make sure you are using [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/overview?view=powershell-7.3) vs. [cmd.exe], or use the [MSI Windows Installer](https://prefix.dev/docs/pixi/overview#windows-installer).
+2. [Install pixi](https://prefix.dev/docs/pixi/overview#installation) using the instructions for your operating system.  NOTE: on Windows, if using the [`iwr` command](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/invoke-webrequest?view=powershell-7.3), make sure you are using [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/overview?view=powershell-7.3) vs. cmd.exe/Terminal, or use the [MSI Windows Installer](https://prefix.dev/docs/pixi/overview#windows-installer).
 3. Start a terminal and navigate to the root of the Action project folder you just downloaded or cloned, `cd action`
 4. Enter the command `pixi run setup` to install dependencies and to download the AI models (NOTE: these are large, ~778M, and will take some time to download)
 
