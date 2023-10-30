@@ -95,6 +95,7 @@ def process_frames(
     buffer_seconds = detector.buffer
     min_detection_duration = detector.min_duration
     show_detections = args.show_detections
+    include_bbox_images = args.include_bbox_images
 
     # Number of frames per minute of video time
     frames_per_minute = 60 * fps
@@ -157,8 +158,22 @@ def process_frames(
                         logger.info(
                             f"{detector.class_name} detected, extending detection event: {format_time(frame_count / fps + buffer_seconds)} (max confidence={format_percent(detection_highest_confidence)})"
                         )
-                        if show_detections:
-                            detector.draw_detections(frame, boxes, video_path)
+                        if show_detections or include_bbox_images:
+                            # Generate an image with bounding boxes drawn on top
+                            bbox_img = detector.draw_detections(frame, boxes)
+
+                            if show_detections:
+                                # Show the bbox image in a window
+                                cv2.imshow(video_path, bbox_img)
+                                cv2.waitKey(1)
+
+                            if include_bbox_images:
+                                # Write the bbox image to the clips directory
+                                frame_time = frame_count / fps
+                                clips.create_bbox_image(
+                                    frame_time, bbox_img, video_path
+                                )
+
                         break
             else:
                 # If no detection was made within the buffer period, and we didn't
@@ -198,8 +213,20 @@ def process_frames(
                     logger.info(
                         f"{detector.class_name} detected, starting detection event: {format_time(frame_count / fps)} (max confidence={format_percent(detection_highest_confidence)})"
                     )
-                    if show_detections:
-                        detector.draw_detections(frame, boxes, video_path)
+                    if show_detections or include_bbox_images:
+                        # Generate an image with bounding boxes drawn on top
+                        bbox_img = detector.draw_detections(frame, boxes)
+
+                        if show_detections:
+                            # Show the bbox image in a window
+                            cv2.imshow(video_path, bbox_img)
+                            cv2.waitKey(1)
+
+                        if include_bbox_images:
+                            # Write the bbox image to the clips directory
+                            clips.create_bbox_image(
+                                detection_start_time, bbox_img, video_path
+                            )
                     detection_event = True
 
         # We've finished processing this frame
@@ -308,7 +335,7 @@ def main(args):
 
             # If we're not using a common clips dir, reset the counter for future clips
             if not output_dir:
-                clips.reset_clip_count()
+                clips.reset()
 
             clip_count_before = clips.get_clip_count()
 

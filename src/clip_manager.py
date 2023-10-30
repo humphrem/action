@@ -14,6 +14,8 @@ from queue import Empty
 
 from .utils import format_time
 
+import cv2
+
 
 def get_clips_dir(video_path):
     """
@@ -92,6 +94,7 @@ class ClipManager:
         stop_event (Event): The stop event for the clip process.
         clip_process (Process): The clip process.
         clip_count (int): The current clip count.
+        bbox_count (int): The current bbox image count.
     """
 
     def __init__(self, logger, output_dir):
@@ -112,6 +115,7 @@ class ClipManager:
         )
         self.clip_process.start()
         self.clip_count = 0
+        self.bbox_count = 0
 
     def create_clip_process(self, queue, stop_event):
         """
@@ -190,6 +194,31 @@ class ClipManager:
             (clip_start_time, clip_end_time, self.clip_count, video_path)
         )
 
+    def create_bbox_image(self, clip_time, bbox_img, video_path):
+        """
+        Write a bounding box image to the clips directory
+
+        Args:
+            clip_time (float): The time of the bounding box.
+            bbox_img: The bounding box image.
+            video_path (str): The path to the video file.
+
+        Returns:
+            None
+        """
+
+        self.bbox_count += 1
+
+        # Create a bbox image for the given detection
+        base_dir = self.output_dir if self.output_dir else get_clips_dir(video_path)
+        bbox_filename = (
+            f"{base_dir}/{(self.bbox_count):04}-{format_time(clip_time, '_')}.jpg"
+        )
+        create_output_dir(os.path.dirname(bbox_filename))
+
+        # Write the bbox image to the clips directory as a JPG
+        cv2.imwrite(bbox_filename, bbox_img)
+
     def stop(self):
         """
         Let the queue know it's time to stop processing new clip
@@ -213,15 +242,16 @@ class ClipManager:
             self.clip_queue.put((None, None, None, None))
             self.clip_process.join()
 
-    def reset_clip_count(self):
+    def reset(self):
         """
-        Reset the clip count to 0.
+        Reset the clip and bbox counts to 0.
 
         Returns:
             None
         """
-        self.logger.debug("Resetting clip manager clip_count to 0")
+        self.logger.debug("Resetting clip manager counts to 0")
         self.clip_count = 0
+        self.bbox_count = 0
 
     def get_clip_count(self):
         """

@@ -110,15 +110,13 @@ class BaseDetector:
         # Return boxes[0] if it exists, otherwise return an empty list
         return boxes[0] if boxes else []
 
-    def draw_detections(self, img, boxes, title):
+    def draw_detections(self, img, boxes):
         """
-        Draw bounding boxes on the image for detected objects and show
-        in a window.
+        Draw bounding boxes on the image for detected objects and return
 
         Args:
             img: Image on which to draw bounding boxes.
             boxes: List of bounding boxes.
-            title: Title for the image window.
         """
         img = np.copy(img)
         width = img.shape[1]
@@ -162,9 +160,7 @@ class BaseDetector:
             )
 
             img = cv2.rectangle(img, (x1, y1), (x2, y2), bgr, bbox_thick)
-
-        cv2.imshow(title, img)
-        cv2.waitKey(1)
+        return img
 
     def post_processing(self, outputs):
         """
