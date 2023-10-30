@@ -72,6 +72,13 @@ if __name__ == "__main__":
         help="Whether to show detection frames with bounding boxes",
     )
     parser.add_argument(
+        "-i",
+        "--include-bbox-images",
+        action="store_true",
+        dest="include_bbox_images",
+        help="Whether to include the bounding box images for the frames that trigger or extend each detection event, along with the videos in the clips directory.",
+    )
+    parser.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         default="INFO",

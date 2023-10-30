@@ -53,7 +53,7 @@ $ python3 action.py
 
 usage: action.py [-h] [-e {terrestrial,aquatic}] [-b BUFFER] [-c CONFIDENCE]
                  [-m MIN_DURATION] [-f SKIP_FRAMES] [-d] [-o OUTPUT_DIR] [-s]
-                 [--log-level {DEBUG,INFO,WARNING,ERROR}]
+                 [-i] [--log-level {DEBUG,INFO,WARNING,ERROR}]
                  filename [filename ...]
 action.py: error: the following arguments are required: filename
 ```
@@ -76,6 +76,7 @@ Action can be configured to run in different ways using various arguments and fl
 | `-d`, `--delete-previous-clips` | Whether to delete clips from previous interrupted or old runs before processing a video again. | `--delete-previous-clips` |
 | `-o`, `--output-dir` | Output directory to use for all clips. | `--output-dir ./output` |
 | `-s`, `--show-detections` | Whether to visually show detection frames with bounding boxes. | `--show-detections` |
+| `i`, `--include-bbox-images` | Whether to include the bounding box images for the frames that trigger or extend each detection event, along with the videos in the clips directory. |
 | `--log-level` | Logging level. Can be `DEBUG`, `INFO`, `WARNING`, or `ERROR`. Defaults to `INFO`. | `--log-level DEBUG` |
 
 > [!NOTE]
