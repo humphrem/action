@@ -10,7 +10,7 @@ ACTION takes one or more video files as input, along with several optional param
 
 ## Setup
 
-ACTION is written in Python and requires a number of dependencies and large machine learning models (~778M) to be installed and downloaded.
+ACTION is written in Python and requires a number of dependencies and large machine learning models (~778MB) to be installed and downloaded.
 
 The easiest way to use it is with the [pixi](https://prefix.dev/docs/pixi/overview) package manager. Pixi installs everything you need into a local `.pixi` folder (i.e., at the root of the project), without needing to modify your system.
 
