@@ -2,15 +2,15 @@
 
 ## Overview
 
-Action is a Python-based tool designed to bring the power of AI computer vision models to camera trap video analysis. Action lets you process hours of raw footage into positive detection clips where animals appear. Whether you're monitoring aquatic life with underwater cameras or tracking terrestrial wildlife, Action can save you from the time and tedious labour of reviewing footage manually.
+ACTION is a Python-based tool designed to bring the power of AI computer vision models to camera trap video analysis. ACTION lets you process hours of raw footage into positive detection clips where animals appear. Whether you're monitoring aquatic life with underwater cameras or tracking terrestrial wildlife, ACTION can save you from the time and tedious labour of reviewing footage manually.
 
 ## How it Works
 
-Action takes one or more video files as input, along with several optional parameters to customize the process. Depending on the environment specified by the user, an appropriate object detection model is used: [YOLO-Fish v4](https://github.com/tamim662/YOLO-Fish) for aquatic videos, or [Megadetector v5](https://github.com/microsoft/CameraTraps/blob/main/megadetector.md) for terrestrial. Input videos are processed using the AI model, and a clip is created whenever terrestrial animals or fish are detected. At the end of the process, a filename_clips directory will include all the detections from the raw footage.
+ACTION takes one or more video files as input, along with several optional parameters to customize the process. Depending on the environment specified by the user, an appropriate object detection model is used: [YOLO-Fish v4](https://github.com/tamim662/YOLO-Fish) for aquatic videos, or [Megadetector v5](https://github.com/microsoft/CameraTraps/blob/main/megadetector.md) for terrestrial. Input videos are processed using the AI model, and a clip is created whenever terrestrial animals or fish are detected. At the end of the process, a filename_clips directory will include all the detections from the raw footage.
 
 ## Setup
 
-Action is written in Python and requires a number of dependencies and large machine learning models (~778M) to be installed and downloaded.
+ACTION is written in Python and requires a number of dependencies and large machine learning models (~778M) to be installed and downloaded.
 
 The easiest way to use it is with the [pixi](https://prefix.dev/docs/pixi/overview) package manager. Pixi installs everything you need into a local `.pixi` folder (i.e., at the root of the project), without needing to modify your system.
 
@@ -18,7 +18,7 @@ The easiest way to use it is with the [pixi](https://prefix.dev/docs/pixi/overvi
 
 1. Download the **Source code** (`zip` or `tar.gz`) from the [Releases](https://github.com/humphrem/action/releases) page, or use Git to clone this repo using `git clone https://github.com/humphrem/action.git`
 2. [Install pixi](https://prefix.dev/docs/pixi/overview#installation) using the instructions for your operating system.  NOTE: on Windows, if using the [`iwr` command](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/invoke-webrequest?view=powershell-7.3), make sure you are using [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/overview?view=powershell-7.3) vs. cmd.exe/Terminal, or use the [MSI Windows Installer](https://prefix.dev/docs/pixi/overview#windows-installer).
-3. Start a terminal and navigate to the root of the Action project folder you just downloaded or cloned, `cd action`
+3. Start a terminal and navigate to the root of the ACTION project folder you just downloaded or cloned, `cd action`
 4. Enter the command `pixi run setup` to install dependencies and to download the AI models and sample videos (NOTE: the models are large, ~778M, and will take some time to download).
 
 ```sh
@@ -34,7 +34,7 @@ When setup is complete, you will have two additional directories:
 
 ### Using the Pixi Shell Environment
 
-Each time you want to use Action, open a terminal, navigate to the Action folder, and start a shell with `pixi`:
+Each time you want to use ACTION, open a terminal, navigate to the ACTION folder, and start a shell with `pixi`:
 
 ```sh
 pixi shell
@@ -48,9 +48,9 @@ When you are done, you can exit the pixi shell by using:
 exit
 ```
 
-## Running Action
+## Running ACTION
 
-With all dependencies installed and the models downloaded to the `models/` directory, you can now run action:
+With all dependencies installed and the models downloaded to the `models/` directory, you can now run ACTION:
 
 ```sh
 $ pixi shell
@@ -68,7 +68,7 @@ action.py: error: the following arguments are required: filename
 
 ### Options
 
-Action can be configured to run in different ways using various arguments and flags.
+ACTION can be configured to run in different ways using various arguments and flags.
 
 | Option | Description | Example |
 | --- | --- | --- |
