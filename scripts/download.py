@@ -1,8 +1,9 @@
 import os
 import requests
 
-# Get the package version from the environment variable
-package_version = os.getenv("PIXI_PACKAGE_VERSION")
+# Get the project version from the environment variable
+package_version = os.getenv("PIXI_PACKAGE_VERSION") or os.getenv("PIXI_PROJECT_VERSION")
+print(f"Downloading release model and sample video files for ACTION v{package_version}")
 
 # URLs of the ONNX model files
 model_urls = [
@@ -28,7 +29,9 @@ def download_files(urls, directory):
 
         # Check if the file already exists
         if not os.path.exists(os.path.join(directory, file_name)):
-            print(f"Downloading {file_name} (this will take some time...)")
+            print(
+                f"Downloading {directory}/{file_name} from {url} (this will take some time...)"
+            )
 
             # Send a HTTP request to the URL of the file
             response = requests.get(url)
@@ -37,9 +40,13 @@ def download_files(urls, directory):
             with open(os.path.join(directory, file_name), "wb") as file:
                 file.write(response.content)
 
-            print(f"Downloaded {file_name} successfully.")
+            print(
+                f"\033[92m\u2714\033[0m Downloaded {directory}/{file_name} successfully."
+            )
         else:
-            print(f"{file_name} already exists, skipping download.")
+            print(
+                f"\033[92m\u2714\033[0m {directory}/{file_name} already exists, skipping download."
+            )
 
 
 # Create the models directory if it does not exist
