@@ -1,2 +1,0 @@
-opencv-python==4.8.1.78
-onnxruntime-silicon==1.16.0

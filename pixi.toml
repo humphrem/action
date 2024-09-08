@@ -1,6 +1,6 @@
 [project]
 name = "action"
-version = "1.0.1"
+version = "1.1.0"
 description = "Automated Camera Trapping Identification and Organization Network (ACTION)"
 repository = "https://github.com/humphrem/action"
 readme = "README.md"
@@ -16,15 +16,11 @@ install-requirements = "pip install -r requirements.txt"
 setup = {depends_on=["install-requirements", "download"]}
 lint = "ruff check ."
 
-[target.osx-arm64.tasks]
-# On macOS ARM we use a different ONNX Runtime optimized for Apple Silicon
-install-requirements = "pip install -r requirements.apple-silicon.txt"
-
 [dependencies]
-python = "3.11.0.*"
-ffmpeg = "6.0.0.*"
+python = ">=3.12.5,<3.13"
+ffmpeg = ">=6.1.1,<7.1"
 pip = "23.2.1.*"
 git = "2.42.0.*"
-numpy = "1.26.0.*"
-ruff = "0.0.292.*"
-requests = "2.31.0.*"
+numpy = ">=2.1.1,<2.2"
+ruff = ">=0.6.4,<0.7"
+requests = ">=2.32.3,<2.33"
