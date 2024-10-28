@@ -24,11 +24,11 @@ from a series of input videos. Processing can be interrupted and resumed at any 
 
 Output Videos:
 -------------
-1. {prefix}-settling-period.MOV:
+1. {prefix}-set.MOV:
    - 5-minute clip starting at specified time from the first video
    - Used to capture initial settling period of experiment
 
-2. {prefix}-merged.MOV:
+2. {prefix}-bat.MOV:
    - Remainder of first video (after settling period)
    - Concatenated with all subsequent videos
    - Maintains video quality and synchronization
@@ -758,8 +758,8 @@ def main():
     processor.check_output_permissions(output_dir)
 
     # Define output filenames using prefix and output directory
-    settling_output = os.path.join(output_dir, f"{args.prefix}-settling-period.MOV")
-    merged_output = os.path.join(output_dir, f"{args.prefix}-merged.MOV")
+    settling_output = os.path.join(output_dir, f"{args.prefix}-set.MOV")
+    merged_output = os.path.join(output_dir, f"{args.prefix}-bat.MOV")
 
     # Check if output files already exist
     for output_file in [settling_output, merged_output]:
