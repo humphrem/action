@@ -383,7 +383,7 @@ class VideoProcessor:
         )
 
         try:
-            self.run_ffmpeg_with_output(cmd, "setting")
+            self.run_ffmpeg_with_output(cmd, "settling")
             self.state.stage = ProcessingStage.SETTLING_CREATED
             self._save_state()
             print(f"✓ Finished creating settling period video: {output_file}")
