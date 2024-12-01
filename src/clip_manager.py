@@ -5,10 +5,10 @@ of this work is done by the ClipManager class, with support from some other
 utility functions.
 """
 
-
 import os
 import shutil
 import subprocess
+import platform
 from multiprocessing import Process, Queue, Event
 from queue import Empty
 
@@ -110,14 +110,38 @@ class ClipManager:
         self.output_dir = output_dir
         self.clip_queue = Queue()
         self.stop_event = Event()
+
+        # Get the best codecs for this system
+        self.decoder, self.encoder = self.get_ffmpeg_codecs()
+        self.logger.info(f"Using decoder={self.decoder}, encoder={self.encoder}")
+
         self.clip_process = Process(
-            target=self.create_clip_process, args=(self.clip_queue, self.stop_event)
+            target=self.create_clip_process,
+            args=(self.clip_queue, self.stop_event, self.decoder, self.encoder),
         )
         self.clip_process.start()
+
         self.clip_count = 0
         self.bbox_count = 0
 
-    def create_clip_process(self, queue, stop_event):
+    def get_ffmpeg_codecs(self):
+        """Return tuple of (decoder, encoder) codecs"""
+        try:
+            result = subprocess.run(
+                ["ffmpeg", "-hide_banner", "-encoders"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            # Prefer hardware accelerated encoding on MacOS
+            if platform.system() == "Darwin" and "h264_videotoolbox" in result.stdout:
+                return ("h264", "h264_videotoolbox")  # Use h264 decoder with hw encoder
+            return ("h264", "libx264")  # software fallback
+        except subprocess.SubprocessError:
+            return ("h264", "libx264")
+
+    def create_clip_process(self, queue, stop_event, decoder, encoder):
         """
         Create a clip process using ffmpeg. It consumes clip requests from a queue.
 
@@ -157,10 +181,12 @@ class ClipManager:
                         str(clip_start_time),
                         "-t",
                         str(clip_duration),
+                        "-c:v",
+                        decoder,
                         "-i",
                         video_path,
                         "-c:v",
-                        "libx264",  # use H.264 for video codec to maximize compatibility
+                        encoder,
                         "-c:a",
                         "aac",  # use Advanced Audio Coding (AAC) for audio compatibility
                         "-pix_fmt",  # use YUV planar color space with 4:2:0 chroma subsampling (QuickTime)

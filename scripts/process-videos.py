@@ -3,6 +3,7 @@
 import argparse
 import fcntl
 import subprocess
+import platform
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -175,6 +176,9 @@ class VideoProcessor:
         self.state = self._load_state()
         # Register cleanup on program exit
         atexit.register(self.cleanup_temp_dir)
+        # Get decoder and encoder codecs
+        self.decoder, self.encoder = self.get_ffmpeg_codecs()
+        print(f"INFO: using decoder={self.decoder}, encoder={self.encoder}")
 
     @classmethod
     def get_last_run(cls) -> Optional[Tuple[str, ProcessingState]]:
@@ -338,10 +342,13 @@ class VideoProcessor:
 
         cmd.extend(
             [
+                "-c:v",
+                self.decoder,
                 "-i",
                 input_file,
+                # Encoder
                 "-c:v",
-                "libx264",  # H.264 video codec for compatibility
+                self.encoder,
                 "-c:a",
                 "aac",  # AAC audio codec for compatibility
                 "-pix_fmt",
@@ -376,11 +383,11 @@ class VideoProcessor:
         )
 
         try:
-            subprocess.run(cmd)
+            self.run_ffmpeg_with_output(cmd, "setting")
             self.state.stage = ProcessingStage.SETTLING_CREATED
             self._save_state()
             print(f"✓ Finished creating settling period video: {output_file}")
-        except Exception as e:
+        except Exception:
             # Save state even on failure
             self._save_state()
             raise
@@ -504,6 +511,23 @@ class VideoProcessor:
         # Return all segment files in correct order
         return [s.output_file for s in self.state.segments.values()]
 
+    def get_ffmpeg_codecs(self):
+        """Return tuple of (decoder, encoder) codecs"""
+        try:
+            result = subprocess.run(
+                ["ffmpeg", "-hide_banner", "-encoders"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            # Prefer hardware accelerated on MacOS
+            if platform.system() == "Darwin" and "h264_videotoolbox" in result.stdout:
+                return ("h264", "h264_videotoolbox")
+            return ("h264", "libx264")  # software fallback
+        except subprocess.SubprocessError:
+            return ("h264", "libx264")
+
     def merge_video_segments(self, segment_files: List[str], output_file: str) -> None:
         """Merge all video segments into final output"""
         if self.state.stage >= ProcessingStage.MERGED:
@@ -535,20 +559,22 @@ class VideoProcessor:
                 "concat",
                 "-safe",
                 "0",
+                "-c:v",
+                self.decoder,
                 "-i",
                 concat_file,
                 "-c:v",
-                "libx264",
+                self.encoder,
                 "-c:a",
                 "aac",
                 "-pix_fmt",
                 "yuv420p",
                 output_file,
             ]
-            result = subprocess.run(merge_cmd, capture_output=True, text=True)
 
-            # If the first attempt fails, try alternative method
-            if result.returncode != 0:
+            try:
+                self.run_ffmpeg_with_output(merge_cmd, "merge")
+            except subprocess.CalledProcessError:
                 print("First merge attempt failed, trying alternative method...")
 
                 # Create intermediate list for complex filter
@@ -577,7 +603,7 @@ class VideoProcessor:
                         "-map",
                         "[outa]",
                         "-c:v",
-                        "libx264",
+                        self.encoder,
                         "-c:a",
                         "aac",
                         "-pix_fmt",
@@ -586,7 +612,7 @@ class VideoProcessor:
                     ]
                 )
 
-                subprocess.run(alternative_cmd, check=True)
+                self.run_ffmpeg_with_output(alternative_cmd, "merge")
 
             self.state.merged_output = output_file
             self.state.stage = ProcessingStage.MERGED
@@ -594,7 +620,6 @@ class VideoProcessor:
 
         except subprocess.CalledProcessError as e:
             print(f"Error during video merge: {e}")
-            print(f"ffmpeg output: {e.output}")
             raise
         finally:
             # Ensure concat file is removed
