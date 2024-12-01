@@ -291,23 +291,33 @@ class VideoProcessor:
             stderr=subprocess.PIPE,
             universal_newlines=True,
             bufsize=1,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
         )
 
-        def handle_output(stream, prefix):
-            for line in stream:
-                # Skip empty lines
-                if line.strip():
-                    # Add prefix to each line for identification
-                    print(f"{prefix}{line}", end="", flush=True)
+        def handle_output(stream, prefix, stream_name):
+            try:
+                while True:
+                    line = stream.readline()
+                    if not line:
+                        print(f"{prefix}[{stream_name}] stream ended")
+                        break
+                    if line.strip():
+                        print(f"{prefix}{line}", end="", flush=True)
+            except Exception as e:
+                print(f"{prefix}Error in {stream_name} handler: {str(e)}")
 
         # Create threads to handle stdout and stderr
         from threading import Thread
 
         stdout_thread = Thread(
-            target=handle_output, args=(process.stdout, f"[{prefix}] ")
+            target=handle_output,
+            args=(process.stdout, f"[{prefix}] ", "stdout"),
+            daemon=True,
         )
         stderr_thread = Thread(
-            target=handle_output, args=(process.stderr, f"[{prefix}] ")
+            target=handle_output,
+            args=(process.stderr, f"[{prefix}] ", "stderr"),
+            daemon=True,
         )
 
         # Start threads
